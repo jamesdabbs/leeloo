@@ -1,0 +1,73 @@
+name:                leeloo
+version:             0.1.0.0
+synopsis:            TODO Initial project template from stack
+description:         Please see README.md
+homepage:            https://github.com/githubuser/leeloo
+license:             BSD3
+license-file:        LICENSE
+author:              Author name here
+maintainer:          example@example.com
+copyright:           2016 Author name here
+category:            Acme
+build-type:          Simple
+extra-source-files:  README.md
+cabal-version:       >=1.10
+tested-with:         GHC == 7.10.2
+
+library
+  default-language:    Haskell2010
+  default-extensions:  OverloadedStrings
+                     , RecordWildCards
+  ghc-options:         -Wall
+  hs-source-dirs:      src
+  exposed-modules:     Base
+                     , Bot
+                     , Bot.Boot
+                     , Bot.Logic
+                     , Bot.Registry
+                     , Bot.Slack
+                     , Model
+                     , Types
+  build-depends:       base >= 4.7 && < 5
+                     , aeson
+                     , bytestring
+                     , containers
+                     , lens
+                     , lens-aeson
+                     , monad-logger
+                     , mtl
+                     , network
+                     , persistent
+                     , persistent-template
+                     , persistent-sqlite
+                     , servant-server
+                     , text
+                     , transformers
+                     , websockets
+                     , wreq
+                     , wuss
+
+executable leeloo
+  default-language:    Haskell2010
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  hs-source-dirs:      app
+  main-is:             Main.hs
+  build-depends:       base
+                     , leeloo
+                     , text
+
+
+test-suite spec
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             Spec.hs
+  build-depends:       base
+                     , leeloo
+                     , hspec
+                     , QuickCheck
+
+source-repository head
+  type:     git
+  location: https://github.com/githubuser/leeloo

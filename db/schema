@@ -1,0 +1,5 @@
+Bot
+  name  Text
+  icon  Text
+  token Text
+  UniqueToken token
