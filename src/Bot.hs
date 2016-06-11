@@ -26,11 +26,11 @@ saveBot b = runDB $ insertBy b >>= \case
   Right _id -> return ()
 
 getBot :: BotId -> L (Entity Bot)
-getBot _id = do
-  mfound <- runDB $ get _id
-  case mfound of
-    Just r  -> return $ Entity _id r
-    Nothing -> throwError NotFound
+getBot _id = runDB (get _id) >>= \case
+  Just r  -> return $ Entity _id r
+  Nothing -> throwError NotFound
 
-bootSaved :: BotRegistry -> L ()
-bootSaved registry = savedBots >>= mapM_ (liftIO . boot registry)
+bootSaved :: L ()
+bootSaved = do
+  conf <- ask
+  savedBots >>= mapM_ (boot conf)

@@ -15,6 +15,8 @@ import Servant
 
 import Bot (boot, getBot, getStatuses, savedBots)
 
+import qualified Data.Text.Lazy as LT
+
 instance ToJSON (Entity Bot) where
   toJSON (Entity _id Bot{..}) = object
     [ "id"    .= _id
@@ -44,10 +46,9 @@ botCreate = error "botCreate"
 
 botStart :: BotId -> L ()
 botStart _id = do
-  liftIO $ putStrLn "starting"
-  spec    <- getBot _id
-  running <- asks bots
-  liftIO $ boot running spec
+  spec <- getBot _id
+  $logInfo $ "Starting bot: " <> (LT.toStrict . botName $ entityVal spec)
+  ask >>= flip boot spec
 
 botStop :: BotId -> L ()
 botStop = error "botStop"

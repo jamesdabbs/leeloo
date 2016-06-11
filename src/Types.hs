@@ -1,21 +1,25 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 module Types
   ( AppConf(..)
   , AppError(..)
   , BotRegistry
-  , Channel
-  , Message(..)
-  , Event(..)
-  , BotToken
-  , L
-  , runL
   , BotStatus(..)
+  , BotToken
+  , Channel
+  , Event(..)
+  , L
+  , Logger
+  , Message(..)
+  , runL
   ) where
 
 import           Control.Concurrent          (ThreadId)
 import           Control.Monad.Except        (MonadError)
-import           Control.Monad.IO.Class      (MonadIO)
-import           Control.Monad.Reader        (MonadReader)
+import           Control.Monad.IO.Class      (MonadIO, liftIO)
+import           Control.Monad.Logger        (MonadLogger(..), toLogStr)
+import           Control.Monad.Reader        (MonadReader, asks)
 import           Control.Monad.Trans.Except  (ExceptT, runExceptT)
 import           Control.Monad.Trans.Reader  (ReaderT, runReaderT)
 import           Data.Aeson
@@ -26,11 +30,9 @@ import qualified Data.Map                    as Map
 import           Data.Text                   (Text)
 import           Database.Persist            (Entity)
 import           Database.Persist.Sql        (ConnectionPool)
+import           System.Log.FastLogger       (FastLogger)
 
 import Model
-
--- instance Ord Bot where
---   compare a b = compare (botToken a) (botToken b)
 
 type BotRegistry = IORef (Map.Map BotId ThreadId)
 
@@ -76,9 +78,12 @@ parseEvent t = withObject "event" $ \v ->
 
 type BotToken = Text
 
+type Logger = FastLogger
+
 data AppConf = AppConf
-  { db   :: ConnectionPool
-  , bots :: BotRegistry
+  { db     :: ConnectionPool
+  , bots   :: BotRegistry
+  , logger :: Logger
   }
 
 data AppError = NotFound | Invalid deriving Show
@@ -94,6 +99,11 @@ runL' conf m = runReaderT (runExceptT $ unL' m) conf
 
 runL :: AppConf -> L a -> IO (Either AppError a)
 runL = runL'
+
+instance MonadLogger L where
+  monadLoggerLog loc src lvl msg = do
+    l <- asks logger
+    liftIO . l $ toLogStr msg
 
 data BotStatus = BotStatus
   { botSpec     :: !(Entity Bot)

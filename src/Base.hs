@@ -4,8 +4,9 @@ module Base
   ) where
 
 import Control.Concurrent           as Base (ThreadId)
-import Control.Monad                as Base (forever, forM_, void, when)
-import Control.Monad.Reader         as Base (MonadReader, asks)
+import Control.Monad                as Base (forever, forM_, void, when, (>=>))
+import Control.Monad.Logger         as Base (MonadLogger, logDebug, logError, logInfo, logWarn, toLogStr)
+import Control.Monad.Reader         as Base (MonadReader, asks, ask)
 import Control.Monad.IO.Class       as Base (MonadIO)
 import Control.Monad.Trans          as Base (liftIO)
 import Control.Monad.Trans.Either   as Base (EitherT, left, right)
@@ -19,12 +20,8 @@ import Types as Base
 
 
 -- TODO: These helpers probably belong elsewhere ...
-import Control.Monad.Logger (MonadLogger(..))
 import Database.Persist.Sqlite as Sqlite
 import Model (migrateAll)
-
-instance MonadLogger IO where
-  monadLoggerLog _ _ _ _ = return ()
 
 withDB :: (MonadIO m, MonadBaseControl IO m, MonadLogger m)
        => (ConnectionPool -> m a) -> m a

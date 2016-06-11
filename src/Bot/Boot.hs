@@ -7,6 +7,7 @@ import Model (Bot(..))
 
 import           Control.Concurrent   (forkIO)
 import           Data.Aeson           (eitherDecode)
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text            as T
 import qualified Data.Text.IO         as T
 import           Network.Socket       (withSocketsDo)
@@ -17,8 +18,8 @@ import Bot.Registry (addBot)
 import Bot.Logic    (botDirectives)
 import Bot.Slack    (getWebsocket, sendMessage)
 
-boot :: BotRegistry -> Entity Bot -> IO ()
-boot registry eb@(Entity _id bot) = withSocketsDo $ do
+boot :: AppConf -> Entity Bot -> L ()
+boot conf eb@(Entity _id bot) = void . liftIO . withSocketsDo $ do
   url <- getWebsocket bot
   let (domain, path) = T.breakOn "/" . T.drop 6 $ url
 
@@ -27,12 +28,16 @@ boot registry eb@(Entity _id bot) = withSocketsDo $ do
 
     sendMessage bot "G087UQUDA" "Reporting for duty"
 
-    pid <- forkIO . forever $ dispatchEvents bot conn
-    addBot registry eb pid
+    pid <- forkIO . forever $ WS.receiveData conn >>= dispatchEvents conf bot
+    addBot (bots conf) eb pid
 
-dispatchEvents :: Bot -> WS.Connection -> IO ()
-dispatchEvents bot conn = do
-  raw <- WS.receiveData conn
-  case eitherDecode raw of
+runBot :: AppConf -> Bot -> L a -> IO a
+runBot conf _ l = runL conf l >>= \case
+  Left err  -> error "bot handler failed" -- TODO
+  Right val -> return val
+
+dispatchEvents :: AppConf -> Bot -> LBS.ByteString -> IO ()
+dispatchEvents conf bot msg = runBot conf bot $
+  case eitherDecode msg of
     Left e -> liftIO . T.putStrLn $ "Failed to parse event: " <> T.pack e
     Right event -> botDirectives bot event
