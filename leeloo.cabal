@@ -16,7 +16,8 @@ tested-with:         GHC == 7.10.2
 
 library
   default-language:    Haskell2010
-  default-extensions:  OverloadedStrings
+  default-extensions:  LambdaCase
+                     , OverloadedStrings
                      , RecordWildCards
   ghc-options:         -Wall
   hs-source-dirs:      src
@@ -32,6 +33,7 @@ library
                      , aeson
                      , bytestring
                      , containers
+                     , either
                      , lens
                      , lens-aeson
                      , monad-logger
@@ -40,6 +42,7 @@ library
                      , persistent
                      , persistent-template
                      , persistent-sqlite
+                     , resourcet
                      , servant-server
                      , text
                      , transformers
@@ -49,12 +52,21 @@ library
 
 executable leeloo
   default-language:    Haskell2010
+  default-extensions:  LambdaCase
+                     , OverloadedStrings
+                     , RecordWildCards
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   hs-source-dirs:      app
   main-is:             Main.hs
+  other-modules:       Api
+                     , Controller
   build-depends:       base
                      , leeloo
+                     , aeson
+                     , servant-server
                      , text
+                     , wai
+                     , warp
 
 
 test-suite spec
@@ -63,6 +75,7 @@ test-suite spec
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Spec.hs
+  other-modules:       LibSpec
   build-depends:       base
                      , leeloo
                      , hspec

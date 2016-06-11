@@ -8,10 +8,12 @@ module Types
   , Event(..)
   , BotToken
   , L
-  , runL'
+  , runL
+  , BotStatus(..)
   ) where
 
 import           Control.Concurrent          (ThreadId)
+import           Control.Monad.Except        (MonadError)
 import           Control.Monad.IO.Class      (MonadIO)
 import           Control.Monad.Reader        (MonadReader)
 import           Control.Monad.Trans.Except  (ExceptT, runExceptT)
@@ -22,6 +24,7 @@ import           Data.ByteString.Lazy        as LBS
 import           Data.IORef                  (IORef)
 import qualified Data.Map                    as Map
 import           Data.Text                   (Text)
+import           Database.Persist            (Entity)
 import           Database.Persist.Sql        (ConnectionPool)
 
 import Model
@@ -78,13 +81,21 @@ data AppConf = AppConf
   , bots :: BotRegistry
   }
 
-data AppError = NotFound | Invalid
+data AppError = NotFound | Invalid deriving Show
 
 newtype L' m a = L'
-  { unL :: ExceptT AppError (ReaderT AppConf m) a
-  } deriving (Applicative, Functor, Monad, MonadIO, MonadReader AppConf)
+  { unL' :: ExceptT AppError (ReaderT AppConf m) a
+  } deriving (Applicative, Functor, Monad, MonadIO, MonadReader AppConf, MonadError AppError)
 
-type L a = L' IO a
+type L = L' IO
 
 runL' :: Monad m => AppConf -> L' m a -> m (Either AppError a)
-runL' conf (L' m) = runReaderT (runExceptT m) conf
+runL' conf m = runReaderT (runExceptT $ unL' m) conf
+
+runL :: AppConf -> L a -> IO (Either AppError a)
+runL = runL'
+
+data BotStatus = BotStatus
+  { botSpec     :: !(Entity Bot)
+  , botThreadId :: !(Maybe ThreadId)
+  }

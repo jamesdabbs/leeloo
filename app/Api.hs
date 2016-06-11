@@ -9,25 +9,44 @@
 {-# LANGUAGE TypeOperators        #-}
 
 module Api
-  ( API
+  ( server
   ) where
 
-import Data.Aeson
 import Servant
 
 import Base
+import qualified Controller as C
+import Model
 
-type API = "bots" :> Get  '[JSON] [BotSpec]
+import qualified Network.Wai as W
+
+type API = "bots" :> Get  '[JSON] [BotStatus]
       :<|> "bots" :> Post '[JSON] ()
+      :<|> "bots" :> Capture "bot_id" BotId
+           :> ( Post   '[JSON] ()
+           :<|> Delete '[JSON] ()
+           )
+
+serverT :: ServerT API L
+serverT = C.botIndex
+     :<|> C.botCreate
+     :<|> ( \_id -> C.botStart _id
+               :<|> C.botStop _id
+          )
+
+server :: AppConf -> W.Application
+server = serve api . extend serverT
 
 api :: Proxy API
 api = Proxy
 
-serverT :: ServerT Api L
-serverT = error "serverT"
+extend :: ServerT API L -> AppConf -> Server API
+extend handlers conf = enter (Nat $ run conf) handlers
 
-server :: AppConf -> Server Api
-server conf = enter lToEither serverT
-  where
-    lToEither = Nat $ \ar ->
-      liftIO ()
+run :: AppConf -> L a -> ExceptT ServantErr IO a
+run conf l = liftIO (runL conf l) >>= \case
+  Left  err -> throwError $ coerceError err
+  Right val -> return val
+
+coerceError :: AppError -> ServantErr
+coerceError = error "coercing error"

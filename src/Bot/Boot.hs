@@ -1,8 +1,3 @@
--- TODO
--- Load bot list from DB
--- Endpoint for viewing bot statuses
--- Endpoint for creating new bot w/ token
--- Add bot functionality - debug queue
 module Bot.Boot
   ( boot
   ) where
@@ -35,6 +30,7 @@ boot registry eb@(Entity _id bot) = withSocketsDo $ do
     pid <- forkIO . forever $ dispatchEvents bot conn
     addBot registry eb pid
 
+dispatchEvents :: Bot -> WS.Connection -> IO ()
 dispatchEvents bot conn = do
   raw <- WS.receiveData conn
   case eitherDecode raw of

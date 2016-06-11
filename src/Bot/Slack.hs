@@ -20,7 +20,7 @@ replyTo bot Message{..} = sendMessage bot messageChannel
 
 sendMessage :: MonadIO m => Bot -> Channel -> Text -> m ()
 sendMessage Bot{..} channel body = do
-  slackRequest (LT.toStrict botToken) "chat.postMessage" $
+  resp <- slackRequest (LT.toStrict botToken) "chat.postMessage" $
     \p -> p & param "channel"     .~ [channel]
             & param "text"        .~ [body]
             & param "username"    .~ [LT.toStrict botName]
