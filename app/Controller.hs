@@ -13,8 +13,9 @@ import Model
 import Data.Aeson
 import Servant
 
-import Bot (boot, getBot, getStatuses, saveBot, savedBots)
-import Bot.Slack (getBotInfo)
+import Bot (getBot, getStatuses, saveBot, savedBots)
+import qualified Adapters.Slack as S
+import qualified Adapters.Slack.Api as S (getBotInfo)
 
 import qualified Data.Text.Lazy as LT
 
@@ -50,16 +51,13 @@ botIndex = do
   liftIO $ getStatuses running specs
 
 botCreate :: BotInfo -> L ()
-botCreate info = do
-  bot <- getBotInfo info >>= saveBot
-  ask >>= flip boot bot
-
+botCreate info = S.getBotInfo info >>= saveBot >>= bootBot S.adapter
 
 botStart :: BotId -> L ()
 botStart _id = do
   spec <- getBot _id
   $logInfo $ "Starting bot: " <> (LT.toStrict . botName $ entityVal spec)
-  ask >>= flip boot spec
+  bootBot S.adapter spec
 
 botStop :: BotId -> L ()
 botStop = error "botStop"

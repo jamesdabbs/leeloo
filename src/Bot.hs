@@ -1,6 +1,5 @@
 module Bot
-  ( boot
-  , bootSaved
+  ( bootSaved
   , getBot
   , getStatuses
   , newBotRegistry
@@ -11,8 +10,8 @@ module Bot
 import Base
 import Model
 import Servant (throwError)
+import qualified Adapters.Slack as Slack
 
-import Bot.Boot     (boot)
 import Bot.Registry (getStatuses, newBotRegistry)
 
 import Database.Persist
@@ -30,5 +29,7 @@ getBot _id = runDB (get _id) >>= \case
 
 bootSaved :: L ()
 bootSaved = do
-  conf <- ask
-  savedBots >>= mapM_ (boot conf)
+  let adapter = Slack.adapter
+  b:_ <- savedBots
+  bootBot adapter b
+  -- savedBots >>= mapM_ (bootBot adapter)

@@ -3,7 +3,7 @@ module Base
   ( module Base
   ) where
 
-import Control.Applicative          as Base (many)
+import Control.Applicative          as Base (optional, many)
 import Control.Concurrent           as Base (ThreadId)
 import Control.Monad                as Base (forever, forM_, liftM2, void, when, (>=>))
 import Control.Monad.Logger         as Base (MonadLogger, logDebug, logError, logInfo, logWarn, toLogStr)

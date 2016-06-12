@@ -22,16 +22,18 @@ library
                      , TemplateHaskell
   ghc-options:         -Wall
   hs-source-dirs:      src
-  exposed-modules:     Base
+  exposed-modules:     Adapters.Slack
+                     , Adapters.Slack.Api
+                     , Adapters.Slack.Types
+                     , Base
                      , Bot
-                     , Bot.Boot
                      , Bot.Logic
                      , Bot.Registry
-                     , Bot.Slack
                      , Logging
                      , Model
+                     , Plugins.Base
+                     , Plugins.Panic
                      , Types
-                     , Types.Slack
   build-depends:       base >= 4.7 && < 5
                      , aeson
                      , attoparsec

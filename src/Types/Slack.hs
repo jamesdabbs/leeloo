@@ -1,23 +1,30 @@
 module Types.Slack
-  ( Channel
+  ( Channel(..)
+  , ChannelId
   , Event(..)
   , Message(..)
+  , RoomId
   , Token
   ) where
 
 import           Data.Aeson
-import
-  Data.Aeson.Types            (Parser)
+import           Data.Aeson.Types            (Parser)
 import           Data.ByteString.Lazy        as LBS
 import           Data.Text                   (Text)
 
-type Channel = Text
-type Token = Text
+type ChannelId = Text
+type RoomId    = Text
+type Token     = Text
 
 data Message = Message
-  { messageBody :: !Text
-  , messageChannel :: !Channel
-  , messageUser :: !(Maybe Text)
+  { messageBody    :: !Text
+  , messageChannel :: !ChannelId
+  , messageUser    :: !(Maybe Text)
+  } deriving Show
+
+data Channel = Channel
+  { channelId   :: !ChannelId
+  , channelName :: !Text
   } deriving Show
 
 instance FromJSON Message where
