@@ -120,6 +120,7 @@ data BotStatus = BotStatus
 
 data Source = SourceRoom Text | SourceUser User deriving (Show, Eq)
 
+-- TODO: messages always have user, maybe a room? What about outgoing messages?
 data Message = Message
   { messageSource :: !Source
   , messageText   :: !Text

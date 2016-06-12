@@ -9,7 +9,6 @@ import Plugins.Base (whitespace)
 import           Data.Attoparsec.Text
 import           Data.Maybe     (isJust)
 import qualified Data.List      as L
-import qualified Data.Text      as T
 import qualified Data.Text.IO   as T
 import qualified Data.Text.Lazy as TL
 import           System.IO

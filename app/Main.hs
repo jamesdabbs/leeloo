@@ -30,6 +30,6 @@ main = runApp $ \conf -> do
   T.putStrLn "Booting stored bots"
   runL conf bootSaved >>= either (error . show) return
 
-  let port = 3000
-  T.putStrLn $ "Starting server on port " <> (T.pack $ show port)
-  W.run port . logStdoutDev $ server conf
+  -- let port = 3000
+  -- T.putStrLn $ "Starting server on port " <> (T.pack $ show port)
+  -- W.run port . logStdoutDev $ server conf
