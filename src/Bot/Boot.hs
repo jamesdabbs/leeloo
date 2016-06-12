@@ -37,7 +37,6 @@ runBot conf _ l = runL conf l >>= \case
   Right val -> return val
 
 dispatchEvents :: AppConf -> Bot -> LBS.ByteString -> IO ()
-dispatchEvents conf bot msg = runBot conf bot $
-  case eitherDecode msg of
-    Left e -> liftIO . T.putStrLn $ "Failed to parse event: " <> T.pack e
-    Right event -> botDirectives bot event
+dispatchEvents conf bot msg = runBot conf bot $ case eitherDecode msg of
+  Left  err   -> liftIO . T.putStrLn $ "Failed to parse event: " <> T.pack err
+  Right event -> botDirectives bot event

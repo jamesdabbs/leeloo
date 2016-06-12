@@ -3,8 +3,9 @@ module Base
   ( module Base
   ) where
 
+import Control.Applicative          as Base (many)
 import Control.Concurrent           as Base (ThreadId)
-import Control.Monad                as Base (forever, forM_, void, when, (>=>))
+import Control.Monad                as Base (forever, forM_, liftM2, void, when, (>=>))
 import Control.Monad.Logger         as Base (MonadLogger, logDebug, logError, logInfo, logWarn, toLogStr)
 import Control.Monad.Reader         as Base (MonadReader, asks, ask)
 import Control.Monad.IO.Class       as Base (MonadIO)

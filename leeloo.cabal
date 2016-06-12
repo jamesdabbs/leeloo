@@ -31,8 +31,10 @@ library
                      , Logging
                      , Model
                      , Types
+                     , Types.Slack
   build-depends:       base >= 4.7 && < 5
                      , aeson
+                     , attoparsec
                      , bytestring
                      , containers
                      , either

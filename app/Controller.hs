@@ -13,16 +13,24 @@ import Model
 import Data.Aeson
 import Servant
 
-import Bot (boot, getBot, getStatuses, savedBots)
+import Bot (boot, getBot, getStatuses, saveBot, savedBots)
+import Bot.Slack (getBotInfo)
 
 import qualified Data.Text.Lazy as LT
 
+instance FromJSON BotInfo where
+  parseJSON = withObject "bot_info" $ \v -> do
+    botInfoToken <- v .: "token"
+    botInfoIcon  <- v .: "icon"
+    return BotInfo{..}
+
 instance ToJSON (Entity Bot) where
   toJSON (Entity _id Bot{..}) = object
-    [ "id"    .= _id
-    , "name"  .= botName
-    , "token" .= botToken
-    , "icon"  .= botIcon
+    [ "id"       .= _id
+    , "slack_id" .= botUserId
+    , "name"     .= botName
+    , "token"    .= botToken
+    , "icon"     .= botIcon
     ]
 
 instance ToJSON BotStatus where
@@ -41,8 +49,11 @@ botIndex = do
   running <- asks bots
   liftIO $ getStatuses running specs
 
-botCreate :: L ()
-botCreate = error "botCreate"
+botCreate :: BotInfo -> L ()
+botCreate info = do
+  bot <- getBotInfo info >>= saveBot
+  ask >>= flip boot bot
+
 
 botStart :: BotId -> L ()
 botStart _id = do

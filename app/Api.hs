@@ -20,11 +20,15 @@ import Model
 
 import qualified Network.Wai as W
 
-type API = "bots" :> Get  '[JSON] [BotStatus]
-      :<|> "bots" :> Post '[JSON] ()
+type GET    a = Get    '[JSON] a
+type POST   a = Post   '[JSON] a
+type DELETE a = Delete '[JSON] a
+
+type API = "bots" :> GET [BotStatus]
+      :<|> "bots" :> ReqBody '[JSON] BotInfo :> POST ()
       :<|> "bots" :> Capture "bot_id" BotId
-           :> ( Post   '[JSON] ()
-           :<|> Delete '[JSON] ()
+           :> ( POST   ()
+           :<|> DELETE ()
            )
 
 serverT :: ServerT API L

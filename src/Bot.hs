@@ -20,10 +20,8 @@ import Database.Persist
 savedBots :: L [Entity Bot]
 savedBots = runDB $ selectList [] []
 
-saveBot :: Bot -> L ()
-saveBot b = runDB $ insertBy b >>= \case
-  Left (Entity _id _) -> replace _id b
-  Right _id -> return ()
+saveBot :: Bot -> L (Entity Bot)
+saveBot b = runDB $ upsert b []
 
 getBot :: BotId -> L (Entity Bot)
 getBot _id = runDB (get _id) >>= \case
