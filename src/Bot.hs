@@ -11,6 +11,7 @@ import Base
 import Model
 import Servant (throwError)
 import qualified Adapters.Slack as Slack
+import qualified Adapters.CLI as CLI
 
 import Bot.Registry (getStatuses, newBotRegistry)
 
@@ -29,7 +30,7 @@ getBot _id = runDB (get _id) >>= \case
 
 bootSaved :: L ()
 bootSaved = do
-  let adapter = Slack.adapter
+  let adapter = CLI.adapter
   b:_ <- savedBots
   bootBot adapter b
   -- savedBots >>= mapM_ (bootBot adapter)

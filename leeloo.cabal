@@ -22,7 +22,8 @@ library
                      , TemplateHaskell
   ghc-options:         -Wall
   hs-source-dirs:      src
-  exposed-modules:     Adapters.Slack
+  exposed-modules:     Adapters.CLI
+                     , Adapters.Slack
                      , Adapters.Slack.Api
                      , Adapters.Slack.Types
                      , Base

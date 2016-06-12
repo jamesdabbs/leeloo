@@ -50,7 +50,7 @@ data Room = Room
 data User = User
   { userId   :: !UserId
   , userName :: !Text
-  } deriving Show
+  } deriving (Show, Eq)
 
 data Monad m => Adapter m = Adapter
   { bootBot        :: Entity Bot -> m ()
@@ -118,7 +118,7 @@ data BotStatus = BotStatus
   -- TODO: other metadata, last checkin, list of plugins, &c.
   }
 
-data Source = SourceRoom Text | SourceUser User deriving Show
+data Source = SourceRoom Text | SourceUser User deriving (Show, Eq)
 
 data Message = Message
   { messageSource :: !Source
