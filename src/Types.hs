@@ -12,17 +12,20 @@ module Types
   , L
   , Logger
   , Message(..)
-  , PluginSpec(..)
   , Plugin -- N.B. not exposing constructor here
   , RoomId
   , Source(..)
   , UserId
   , User(..)
   , mkPlugin
+  , pluginApplies
+  , pluginName
   , runL
+  , runPlugin
   ) where
 
 import           Control.Concurrent          (ThreadId)
+import           Control.Monad               (MonadPlus, mzero, unless)
 import           Control.Monad.Except        (MonadError)
 import           Control.Monad.IO.Class      (MonadIO, liftIO)
 import           Control.Monad.Logger        (MonadLogger(..), toLogStr)
@@ -32,10 +35,13 @@ import           Control.Monad.Trans.Reader  (ReaderT, runReaderT)
 import           Data.Attoparsec.Text        (Parser, parseOnly)
 import           Data.IORef                  (IORef)
 import qualified Data.Map                    as Map
+import           Data.Maybe                  (isJust)
 import           Data.Text                   (Text)
 import           Database.Persist            (Entity)
 import           Database.Persist.Sql        (ConnectionPool)
 import           System.Log.FastLogger       (FastLogger)
+
+import Debug.Trace (traceShow)
 
 import Model
 
@@ -65,40 +71,60 @@ data Example = Example
   , exampleDescription :: Text
   }
 
-data Monad m => PluginSpec m a = PluginSpec
-  { ppName     :: Text
-  , ppExamples :: [Example]
-  , ppParser   :: Parser a
-  , ppHandler  :: a -> Bot -> Message -> m ()
-  , ppCommand  :: Bool
-  }
-
-data Plugin m = Plugin
+data Monad m => Plugin m = Plugin
   { pName     :: Text
   , pExamples :: [Example]
-  , pTest     :: Message -> Bool
-  , pRun      :: Bot -> Message -> m ()
   , pCommand  :: Bool
+  , pAdapter  :: Adapter m
+  -- The odd version of Bool is so we can have a consistent
+  -- monadic interface to both these helpers
+  , pTest     :: Bot -> Message -> Maybe ()
+  , pRun      :: Bot -> Message -> m ()
   }
 
-checkParse parser Message{..} =
+checkParser :: Parser a -> Bot -> Message -> Maybe ()
+checkParser parser bot Message{..} =
   case parseOnly parser messageText of
-    Right _ -> True
-    Left  _ -> False
+    Right _ -> Just ()
+    Left  _ -> Nothing
 
-ppRun parser handler bot msg@Message{..} =
+runParser :: Monad m => Parser a -> (Bot -> Message -> a -> m ()) -> Bot -> Message -> m ()
+runParser parser handler bot msg@Message{..} =
   case parseOnly parser messageText of
-    Right r -> handler r bot msg
+    Right r -> handler bot msg r
     Left  _ -> return ()
 
-mkPlugin :: Monad m => PluginSpec m a -> Plugin m
-mkPlugin PluginSpec{..} = Plugin
-  { pName     = ppName
-  , pExamples = ppExamples
-  , pCommand  = ppCommand
-  , pTest     = checkParse ppParser
-  , pRun      = ppRun ppParser ppHandler
+pluginApplies :: Monad m => Plugin m -> Bot -> Message -> Bool
+pluginApplies p b m = isJust $ pTest p b m
+
+pluginName :: Monad m => Plugin m -> Text
+pluginName = pName
+
+runPlugin :: Monad m => Plugin m -> Bot -> Message -> m ()
+runPlugin = pRun
+
+mkPlugin :: Monad m
+         => Adapter m
+         -> Text
+         -> [Example]
+         -> Bool
+         -> Parser a
+         -> (Bot -> Message -> a -> m ())
+         -> Plugin m
+mkPlugin adapter name examples commandOnly parser handler = Plugin
+  { pName     = name
+  , pExamples = examples
+  , pCommand  = commandOnly
+  , pAdapter  = adapter
+  , pTest     = withCommand $ checkParser parser
+  , pRun      = withCommand $ runParser parser handler
   }
+  where
+    withCommand :: Monad m => (Bot -> Message -> m ()) -> Bot -> Message -> m ()
+    withCommand f b m = case parseCommand adapter b m of
+      Just text -> traceShow text $ f b $ m { messageText = text }
+      _ -> -- This didn't match the command format for the given adapter
+        unless commandOnly $ f b m
 
 -- Idea:
 -- * enforce that plugins parse their examples

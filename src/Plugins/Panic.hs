@@ -11,8 +11,8 @@ import Plugins.Base
 import Data.Attoparsec.Text
 import qualified Data.Text as T
 
-check :: MonadIO m => Adapter m -> Bot -> Message -> m ()
-check = onComment checkP $ \a@Adapter{..} bot msg mroom -> do
+check :: MonadIO m => Adapter m -> Plugin m
+check a = mkPlugin a "Check panic" [] True checkP $ \bot msg mroom -> do
   reply a bot msg "I don't know, but I'll ask them"
   getRoom a bot msg mroom >>= \case
     Just roomId -> startPoll a bot msg roomId
@@ -26,8 +26,8 @@ checkP = do
   optional (string "in " *> word)
 
 
-record :: MonadIO m => Adapter m -> Bot -> Message -> m ()
-record = onCommand recordP $ \a bot msg@Message{..} n -> case messageSource of
+record :: MonadIO m => Adapter m -> Plugin m
+record a = mkPlugin a "Record panic levels" [] True recordP $ \bot msg@Message{..} n -> case messageSource of
   SourceUser user -> do
     respondToPoll a bot user n
     reply a bot msg $ T.pack $ show n <> ", got it"
@@ -39,8 +39,9 @@ recordP = do
   return $ read [d]
 
 
-export :: MonadIO m => Adapter m -> Bot -> Message -> m ()
-export = onComment (string "export panic") $ \a bot msg -> error "export panic"
+export :: MonadIO m => Adapter m -> Plugin m
+export a = mkPlugin a "Export all panic scores" [] True (string "export panic") $ \bot msg _ ->
+  error "export panic"
 
 
 getRoom :: Monad m => Adapter m -> Bot -> Message -> Maybe Text -> m (Maybe Source)

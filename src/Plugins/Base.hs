@@ -20,12 +20,12 @@ type B a m = MonadIO m => Adapter m -> Bot -> Message -> a -> m ()
 reply :: MonadIO m => Adapter m -> Bot -> Message -> Text -> m ()
 reply Adapter{..} bot Message{..} = sendMessage bot messageSource
 
-echo :: MonadIO m => Adapter m -> Bot -> Message -> m ()
-echo = onCommand ("echo " *> takeText) reply
+echo :: MonadIO m => Adapter m -> Plugin m
+echo a = mkPlugin a "Echo back a string" [] True ("echo " *> takeText) $ reply a
 
-help :: MonadIO m => Adapter m -> Bot -> Message -> m ()
-help = onComment (string "help") $ \a b m _ ->
-  reply a b m "Should say something helpful here"
+help :: MonadIO m => Adapter m -> Plugin m
+help a = mkPlugin a "Display help" [] False (string "help") $ \bot msg _ ->
+  reply a bot msg "Should say something helpful here"
 
 
 onCommand :: MonadIO m => Parser a -> B a m

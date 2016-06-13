@@ -3,16 +3,21 @@ module Bot.Logic
   ) where
 
 import Base
-import Model (Bot(..))
 import Plugins.Base
 import qualified Plugins.Panic as P
 
+import qualified Data.List as L
+
 botDirectives :: MonadIO m => Adapter m -> Bot -> Message -> m ()
 botDirectives a bot msg = do
-  -- TODO: need to check / run these independently
-  -- (so that one failing one doesn't stop the others from running)
-  echo     a bot msg
-  help     a bot msg
-  P.check  a bot msg
-  P.record a bot msg
-  P.export a bot msg
+  let plugins = map ($ a) [echo, help, P.check, P.record, P.export]
+
+  let applicable = L.filter (\p -> pluginApplies p bot msg) plugins
+
+  -- TODO:
+  -- * ensure that plugins run in isolation and crash safely
+  -- * enforce only one match?
+  unless (null applicable) $ do
+    let names = L.map pluginName applicable
+    liftIO . putStrLn $ show msg ++ " matches plugins " ++ show names
+    forM_ applicable $ \p -> runPlugin p bot msg

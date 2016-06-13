@@ -5,7 +5,7 @@ module Base
 
 import Control.Applicative          as Base (optional, many)
 import Control.Concurrent           as Base (ThreadId)
-import Control.Monad                as Base (forever, forM_, liftM2, unless, void, when, (>=>))
+import Control.Monad                as Base (MonadPlus, forever, forM_, liftM2, mzero, unless, void, when, (>=>))
 import Control.Monad.Logger         as Base (MonadLogger, logDebug, logError, logInfo, logWarn, toLogStr)
 import Control.Monad.Reader         as Base (MonadReader, asks, ask)
 import Control.Monad.IO.Class       as Base (MonadIO)
@@ -19,6 +19,7 @@ import Database.Persist             as Base (Entity(..), Key(..))
 
 import Types as Base
 
+import qualified Debug.Trace as Debug
 
 -- TODO: These helpers probably belong elsewhere ...
 import Database.Persist.Sqlite as Sqlite
@@ -32,3 +33,12 @@ withDB action = Sqlite.withSqlitePool "db/dev.sqlite3" 1 $ \pool -> do
 
 runDB :: (MonadReader AppConf m, Monad m, MonadIO m) => SqlPersistT IO a -> m a
 runDB p = asks db >>= liftIO . runSqlPool p
+
+tr :: Show a => a -> b -> b
+tr = Debug.traceShow
+
+tr' :: Show a => a -> a
+tr' = Debug.traceShowId
+
+trm :: (Show a, Monad m) => a -> m ()
+trm = Debug.traceShowM

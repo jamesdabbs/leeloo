@@ -67,11 +67,12 @@ _getRoomMembers _ source = do
 
 commandParser :: Bot -> Parser (Maybe Text)
 commandParser Bot{..} = do
-  name   <- optional $ string ("@" <> TL.toStrict botName)
   direct <- optional $ string "dm:"
   whitespace
+  name <- optional $ string ("@" <> TL.toStrict botName)
+  whitespace
   rest <- takeText
-  return $ if isJust name || isJust direct
+  return $ if isJust direct || name == (Just $ TL.toStrict botName)
     then Just rest
     else Nothing
 
