@@ -11,6 +11,7 @@ module Main where
 import Base
 import Api     (server)
 import Bot     (newBotRegistry, bootSaved)
+import Bots    (demo)
 import Logging (newLogger)
 
 import qualified Data.Text                as T
@@ -28,7 +29,8 @@ runApp action = do
 main :: IO ()
 main = runApp $ \conf -> do
   T.putStrLn "Booting stored bots"
-  runL conf bootSaved >>= either (error . show) return
+  -- runL conf bootSaved >>= either (error . show) return
+  runL conf demo >>= either (error . show) return
 
   -- let port = 3000
   -- T.putStrLn $ "Starting server on port " <> (T.pack $ show port)

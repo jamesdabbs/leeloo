@@ -3,7 +3,7 @@ module Adapters.CLI
   ) where
 
 import Base
-import Bot.Logic (botDirectives)
+import Bot (botDirectives)
 import Plugins.Base (whitespace)
 
 import           Data.Attoparsec.Text
@@ -24,8 +24,9 @@ adapter = Adapter
   , getRoomMembers = _getRoomMembers
   }
 
-_bootBot :: Entity Bot -> L ()
-_bootBot (Entity _ bot@Bot{..}) = do
+_bootBot :: BotSpec L -> L ()
+_bootBot spec@BotSpec{..} = do
+  let (Entity _ bot@Bot{..}) = botRecord
   liftIO . putStrLn $ "Starting " ++ show botName
   let
     loop :: L ()
@@ -37,7 +38,7 @@ _bootBot (Entity _ bot@Bot{..}) = do
       unless (input == "q") $ do
         case parseOnly messageParser input of
           Left  err -> liftIO . putStrLn $ "Could not parse input: " ++ err
-          Right msg -> botDirectives adapter bot msg
+          Right msg -> botDirectives spec msg
         loop
   loop
 
@@ -74,9 +75,7 @@ messageParser = do
   let mRoom = case mRoomName of
         Just name -> roomNamed name
         Nothing   -> Just here
-  room <- case mRoom of
-        Just r  -> return r
-        Nothing -> mzero
+  room <- maybe mzero return mRoom
 
   mDirect <- optional "dm:"
   whitespace

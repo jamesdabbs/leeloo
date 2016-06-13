@@ -8,6 +8,7 @@ module Types
   , Bot(..)
   , BotInfo(..)
   , BotRegistry
+  , BotSpec(..)
   , BotStatus(..)
   , L
   , Logger
@@ -57,7 +58,7 @@ data User = User
   } deriving (Show, Eq)
 
 data Monad m => Adapter m = Adapter
-  { bootBot        :: Entity Bot -> m ()
+  { bootBot        :: BotSpec m -> m ()
   , sendToRoom     :: Bot -> Room -> Text -> m ()
   , sendToUser     :: Bot -> User -> Text -> m ()
   , parseCommand   :: Bot -> Message -> Maybe Text
@@ -136,10 +137,7 @@ mkPlugin adapter name examples commandOnly parser handler = Plugin
 data BotSpec m = BotSpec
   { botRecord  :: !(Entity Bot)
   , botAdapter :: !(Adapter m)
-  -- TODO: we don't want to restrict the plugin type `a`,
-  --   so this will be a list of names that are assumed unique.
-  --   I'd like to verify this though, instead of stringly typing
-  , botPlugins :: ![Text]
+  , botPlugins :: ![Plugin m]
   }
 
 data BotStatus = BotStatus

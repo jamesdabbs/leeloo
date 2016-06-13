@@ -7,9 +7,10 @@ module Logging
 
 import Base
 
-import Control.Monad.Logger (LogLevel(..), MonadLogger(..))
+import Control.Monad.Logger (MonadLogger(..))
 import System.Log.FastLogger
 
+-- TODO: what's the right way to handle this?
 instance MonadLogger IO where
   monadLoggerLog _ _ _ _ = return ()
 

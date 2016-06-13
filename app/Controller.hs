@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 module Controller
   ( botIndex
@@ -13,7 +12,9 @@ import Model
 import Data.Aeson
 import Servant
 
-import Bot (getBot, getStatuses, saveBot, savedBots)
+import Bot  (getBot, getStatuses, runBot, saveBot, savedBots)
+import Bots (buildSlackBot)
+
 import qualified Adapters.Slack as S
 import qualified Adapters.Slack.Api as S (getBotInfo)
 
@@ -51,15 +52,15 @@ botIndex = do
   liftIO $ getStatuses running specs
 
 botCreate :: BotInfo -> L ()
-botCreate = error "botCreate"
--- botCreate info = S.getBotInfo info >>= saveBot >>= bootBot S.adapter
+botCreate info = do
+  record <- S.getBotInfo info >>= saveBot
+  runBot $ buildSlackBot record
 
 botStart :: BotId -> L ()
 botStart _id = do
-  error "botStart"
-  -- spec <- getBot _id
-  -- $logInfo $ "Starting bot: " <> (LT.toStrict . botName $ entityVal spec)
-  -- bootBot S.adapter spec
+  record <- getBot _id
+  $logInfo $ "Starting bot: " <> (LT.toStrict . botName $ entityVal record)
+  runBot $ buildSlackBot record
 
 botStop :: BotId -> L ()
 botStop = error "botStop"

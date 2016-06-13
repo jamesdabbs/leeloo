@@ -28,7 +28,7 @@ library
                      , Adapters.Slack.Types
                      , Base
                      , Bot
-                     , Bot.Logic
+                     , Bots
                      , Bot.Registry
                      , Logging
                      , Model

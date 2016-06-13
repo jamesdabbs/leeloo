@@ -1,5 +1,4 @@
 -- TODO:
--- * get these updated with the new message, adapter signatures
 -- * connect each adapter to Redis, namespaced by bot name
 -- * cache userId => user and channelId => channel lookups
 module Adapters.Slack
@@ -25,14 +24,14 @@ import           Network.Socket       (withSocketsDo)
 import qualified Network.WebSockets   as WS
 import qualified Wuss                 as WS (runSecureClient)
 
+import Bot          (botDirectives)
 import Bot.Registry (addBot)
-import Bot.Logic    (botDirectives)
 import Plugins.Base (whitespace)
 
 
 adapter :: Adapter L
 adapter = Adapter
-  { bootBot        = bootSlackBot
+  { bootBot        = _bootBot
   , sendToUser     = _sendToUser
   , sendToRoom     = _sendToRoom
   , parseCommand   = parseSlackCommand
@@ -40,8 +39,9 @@ adapter = Adapter
   , getRoomMembers = getSlackRoomMembers
   }
 
-bootSlackBot :: Entity Bot -> L ()
-bootSlackBot eb@(Entity _id bot) = do
+_bootBot :: BotSpec L -> L ()
+_bootBot spec@BotSpec{..} = do
+  let (Entity _ bot) = botRecord
   conf <- ask
   void . liftIO . withSocketsDo $ do
     url <- S.getWebsocket bot
@@ -53,18 +53,20 @@ bootSlackBot eb@(Entity _id bot) = do
       -- TODO: don't hardcode this
       S.sendMessage bot "G087UQUDA" "Reporting for duty"
 
-      pid <- forkIO . forever $ WS.receiveData conn >>= dispatchEvents conf bot
-      addBot (bots conf) eb pid
+      pid <- forkIO . forever $ WS.receiveData conn >>= dispatchEvents conf spec
+      addBot (bots conf) botRecord pid
 
 runBot :: AppConf -> Bot -> L a -> IO a
 runBot conf _ l = runL conf l >>= \case
   Left  _   -> error "bot handler failed" -- TODO
   Right val -> return val
 
-dispatchEvents :: AppConf -> Bot -> LBS.ByteString -> IO ()
-dispatchEvents conf bot msg = runBot conf bot $ case eitherDecode msg of
+dispatchEvents :: AppConf -> BotSpec L -> LBS.ByteString -> IO ()
+dispatchEvents conf spec msg = runBot conf bot $ case eitherDecode msg of
   Left  err   -> liftIO . T.putStrLn $ "Failed to parse event: " <> T.pack err
-  Right event -> withMessages (botDirectives adapter bot) event
+  Right event -> withMessages (botDirectives spec) event
+  where
+    bot = entityVal $ botRecord spec
 
 toMessage :: S.Message -> Message
 toMessage sm =
@@ -76,13 +78,6 @@ toMessage sm =
        , messageText   = S.messageBody sm
        , messageDirect = isDirect sm
        }
-
---fromMessage :: Message -> S.Message
---fromMessage Message{..} = S.Message
---  { S.messageChannel = channelIdForSource $ messageSource m
---  , S.messageBody    = messageText m
---  , S.messageUser    = Nothing -- FIXME
---  }
 
 withMessages :: Monad m => (Message -> m ()) -> S.Event -> m ()
 withMessages f (S.MessageEvent m) = f $ toMessage m
