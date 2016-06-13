@@ -49,12 +49,12 @@ getBotInfo BotInfo{..} = do
 
 getChannels :: MonadIO m => Bot -> m [S.Channel]
 getChannels Bot{..} = do
-  liftIO $ print "FIXME: getChannels"
+  error "FIXME: getChannels"
   return []
 
-getChannelMembers :: MonadIO m => Text -> m [S.User]
-getChannelMembers _ = do
-  liftIO $ print "FIXME: getChannelMembers"
+getChannelMembers :: MonadIO m => Bot -> Text -> m [S.User]
+getChannelMembers _ _ = do
+  error "FIXME: getChannelMembers"
   return []
 
 slackRequest :: MonadIO m => Text -> Text -> (Options -> Options) -> m (Response LBS.ByteString)

@@ -27,11 +27,9 @@ checkP = do
 
 
 record :: MonadIO m => Adapter m -> Plugin m
-record a = mkPlugin a "Record panic levels" [] True recordP $ \bot msg@Message{..} n -> case messageSource of
-  SourceUser user -> do
-    respondToPoll a bot user n
-    reply a bot msg $ T.pack $ show n <> ", got it"
-  _ -> return () -- TODO: this is klunky
+record a = mkPlugin a "Record panic levels" [] True recordP $ \bot msg@Message{..} n -> do
+  respondToPoll a bot messageUser n
+  sendToUser a bot messageUser $ T.pack $ show n <> ", got it"
 
 recordP :: Parser Int
 recordP = do
@@ -44,22 +42,21 @@ export a = mkPlugin a "Export all panic scores" [] True (string "export panic") 
   error "export panic"
 
 
-getRoom :: Monad m => Adapter m -> Bot -> Message -> Maybe Text -> m (Maybe Source)
-getRoom a bot msg mname = case mname of
+getRoom :: Monad m => Adapter m -> Bot -> Message -> Maybe Text -> m (Maybe Room)
+getRoom a bot Message{..} mname = case mname of
   Just name -> getRoomByName a bot name
-  _         -> return . Just $ messageSource msg
+  _         -> return $ Just messageRoom
 
-startPoll :: MonadIO m => Adapter m -> Bot -> Message -> Source -> m ()
+startPoll :: MonadIO m => Adapter m -> Bot -> Message -> Room -> m ()
 startPoll adapter bot msg source = do
   members <- getRoomMembers adapter bot source
-  forM_ members $ \u ->
-    sendMessage adapter bot (SourceUser u) "Hey, how are you doing today (on a scale of 1-6)?"
+  forM_ members $ \u -> sendToUser adapter bot u "Hey, how are you doing today (on a scale of 1-6)?"
 
 respondToPoll :: MonadIO m => Adapter m -> Bot -> User -> Int -> m ()
 respondToPoll adapter bot user n = do
   poll <- activePollFor user
   when (n > 4) $
-    sendMessage adapter bot (SourceUser $ pollPoster poll) $ "FYI, " <> (T.pack $ show user) <> " is at a " <> (T.pack $ show n)
+    sendToUser adapter bot (pollPoster poll) $ "FYI, " <> (T.pack $ show user) <> " is at a " <> (T.pack $ show n)
   recordPollResponse poll user n
 
 data Poll = Poll
@@ -71,4 +68,3 @@ activePollFor = error "activePollFor"
 
 recordPollResponse :: Poll -> User -> Int -> m ()
 recordPollResponse = error "recordPollResponse"
-

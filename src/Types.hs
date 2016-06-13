@@ -13,8 +13,8 @@ module Types
   , Logger
   , Message(..)
   , Plugin -- N.B. not exposing constructor here
+  , Room(..)
   , RoomId
-  , Source(..)
   , UserId
   , User(..)
   , mkPlugin
@@ -35,13 +35,11 @@ import           Control.Monad.Trans.Reader  (ReaderT, runReaderT)
 import           Data.Attoparsec.Text        (Parser, parseOnly)
 import           Data.IORef                  (IORef)
 import qualified Data.Map                    as Map
-import           Data.Maybe                  (isJust)
+import           Data.Maybe                  (isNothing)
 import           Data.Text                   (Text)
 import           Database.Persist            (Entity)
 import           Database.Persist.Sql        (ConnectionPool)
 import           System.Log.FastLogger       (FastLogger)
-
-import Debug.Trace (traceShow)
 
 import Model
 
@@ -51,7 +49,7 @@ type UserId = Text
 data Room = Room
   { roomId   :: !RoomId
   , roomName :: !Text
-  }
+  } deriving (Show, Eq)
 
 data User = User
   { userId   :: !UserId
@@ -60,10 +58,11 @@ data User = User
 
 data Monad m => Adapter m = Adapter
   { bootBot        :: Entity Bot -> m ()
-  , sendMessage    :: Bot -> Source -> Text -> m ()
+  , sendToRoom     :: Bot -> Room -> Text -> m ()
+  , sendToUser     :: Bot -> User -> Text -> m ()
   , parseCommand   :: Bot -> Message -> Maybe Text
-  , getRoomByName  :: Bot -> Text -> m (Maybe Source)
-  , getRoomMembers :: Bot -> Source -> m [User]
+  , getRoomByName  :: Bot -> Text -> m (Maybe Room)
+  , getRoomMembers :: Bot -> Room -> m [User]
   }
 
 data Example = Example
@@ -78,6 +77,9 @@ data Monad m => Plugin m = Plugin
   , pAdapter  :: Adapter m
   -- The odd version of Bool is so we can have a consistent
   -- monadic interface to both these helpers
+  -- We always `return ()` if the command check fails
+  -- These aren't exposed, so it's not that bad, but ...
+  -- TODO: make this more intuitive
   , pTest     :: Bot -> Message -> Maybe ()
   , pRun      :: Bot -> Message -> m ()
   }
@@ -85,8 +87,8 @@ data Monad m => Plugin m = Plugin
 checkParser :: Parser a -> Bot -> Message -> Maybe ()
 checkParser parser bot Message{..} =
   case parseOnly parser messageText of
-    Right _ -> Just ()
-    Left  _ -> Nothing
+    Right _ -> Nothing
+    Left  _ -> Just ()
 
 runParser :: Monad m => Parser a -> (Bot -> Message -> a -> m ()) -> Bot -> Message -> m ()
 runParser parser handler bot msg@Message{..} =
@@ -95,7 +97,7 @@ runParser parser handler bot msg@Message{..} =
     Left  _ -> return ()
 
 pluginApplies :: Monad m => Plugin m -> Bot -> Message -> Bool
-pluginApplies p b m = isJust $ pTest p b m
+pluginApplies p b m = isNothing $ pTest p b m
 
 pluginName :: Monad m => Plugin m -> Text
 pluginName = pName
@@ -122,9 +124,11 @@ mkPlugin adapter name examples commandOnly parser handler = Plugin
   where
     withCommand :: Monad m => (Bot -> Message -> m ()) -> Bot -> Message -> m ()
     withCommand f b m = case parseCommand adapter b m of
-      Just text -> traceShow text $ f b $ m { messageText = text }
+      Just text -> f b $ m { messageText = text }
       _ -> -- This didn't match the command format for the given adapter
-        unless commandOnly $ f b m
+        if commandOnly
+          then return ()
+          else f b m
 
 -- Idea:
 -- * enforce that plugins parse their examples
@@ -144,12 +148,12 @@ data BotStatus = BotStatus
   -- TODO: other metadata, last checkin, list of plugins, &c.
   }
 
-data Source = SourceRoom Text | SourceUser User deriving (Show, Eq)
-
--- TODO: messages always have user, maybe a room? What about outgoing messages?
-data Message = Message
-  { messageSource :: !Source
+data Message = Message -- an _incoming_ message
+  { messageRoom   :: !Room
+  , messageUser   :: !User
   , messageText   :: !Text
+  , messageDirect :: Bool
+  -- TODO: better enforcement of non-nulls
   } deriving Show
 
 type BotRegistry = IORef (Map.Map BotId ThreadId)

@@ -10,7 +10,7 @@ module Bot
 import Base
 import Model
 import Servant (throwError)
-import qualified Adapters.Slack as Slack
+-- import qualified Adapters.Slack as Slack
 import qualified Adapters.CLI as CLI
 
 import Bot.Registry (getStatuses, newBotRegistry)

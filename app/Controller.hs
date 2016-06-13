@@ -51,13 +51,15 @@ botIndex = do
   liftIO $ getStatuses running specs
 
 botCreate :: BotInfo -> L ()
-botCreate info = S.getBotInfo info >>= saveBot >>= bootBot S.adapter
+botCreate = error "botCreate"
+-- botCreate info = S.getBotInfo info >>= saveBot >>= bootBot S.adapter
 
 botStart :: BotId -> L ()
 botStart _id = do
-  spec <- getBot _id
-  $logInfo $ "Starting bot: " <> (LT.toStrict . botName $ entityVal spec)
-  bootBot S.adapter spec
+  error "botStart"
+  -- spec <- getBot _id
+  -- $logInfo $ "Starting bot: " <> (LT.toStrict . botName $ entityVal spec)
+  -- bootBot S.adapter spec
 
 botStop :: BotId -> L ()
 botStop = error "botStop"

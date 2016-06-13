@@ -3,8 +3,8 @@ module Types.Slack
   , ChannelId
   , Event(..)
   , Message(..)
-  , RoomId
   , Token
+  , UserId
   ) where
 
 import           Data.Aeson
@@ -13,13 +13,13 @@ import           Data.ByteString.Lazy        as LBS
 import           Data.Text                   (Text)
 
 type ChannelId = Text
-type RoomId    = Text
+type UserId    = Text
 type Token     = Text
 
 data Message = Message
   { messageBody    :: !Text
   , messageChannel :: !ChannelId
-  , messageUser    :: !(Maybe Text)
+  , messageUser    :: !(Maybe UserId)
   } deriving Show
 
 data Channel = Channel

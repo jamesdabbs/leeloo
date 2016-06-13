@@ -12,13 +12,16 @@ module Plugins.Base
 import Base
 
 import           Data.Attoparsec.Text
-import qualified Data.Text                  as T
+import           Data.Maybe           (fromJust)
+import qualified Data.Text            as T
 
 type B a m = MonadIO m => Adapter m -> Bot -> Message -> a -> m ()
 
 
 reply :: MonadIO m => Adapter m -> Bot -> Message -> Text -> m ()
-reply Adapter{..} bot Message{..} = sendMessage bot messageSource
+reply a bot msg@Message{..} text = if messageDirect
+  then sendToUser a bot messageUser text
+  else sendToRoom a bot messageRoom text
 
 echo :: MonadIO m => Adapter m -> Plugin m
 echo a = mkPlugin a "Echo back a string" [] True ("echo " *> takeText) $ reply a

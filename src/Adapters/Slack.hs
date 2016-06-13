@@ -1,3 +1,7 @@
+-- TODO:
+-- * get these updated with the new message, adapter signatures
+-- * connect each adapter to Redis, namespaced by bot name
+-- * cache userId => user and channelId => channel lookups
 module Adapters.Slack
   ( adapter
   ) where
@@ -29,7 +33,8 @@ import Plugins.Base (whitespace)
 adapter :: Adapter L
 adapter = Adapter
   { bootBot        = bootSlackBot
-  , sendMessage    = sendSlackMessage
+  , sendToUser     = _sendToUser
+  , sendToRoom     = _sendToRoom
   , parseCommand   = parseSlackCommand
   , getRoomByName  = getSlackRoomByName
   , getRoomMembers = getSlackRoomMembers
@@ -62,17 +67,22 @@ dispatchEvents conf bot msg = runBot conf bot $ case eitherDecode msg of
   Right event -> withMessages (botDirectives adapter bot) event
 
 toMessage :: S.Message -> Message
-toMessage sm = Message
-  { messageSource = SourceRoom $ S.messageChannel sm
-  , messageText   = S.messageBody sm
-  }
+toMessage sm =
+  let r = S.messageChannel sm
+      u = maybe "" id $ S.messageUser sm
+  in Message
+       { messageRoom   = Room { roomId = r, roomName = r }
+       , messageUser   = User { userId = u, userName = u }
+       , messageText   = S.messageBody sm
+       , messageDirect = isDirect sm
+       }
 
-fromMessage :: Message -> S.Message
-fromMessage m = S.Message
-  { S.messageChannel = channelIdForSource $ messageSource m
-  , S.messageBody    = messageText m
-  , S.messageUser    = Nothing -- FIXME
-  }
+--fromMessage :: Message -> S.Message
+--fromMessage Message{..} = S.Message
+--  { S.messageChannel = channelIdForSource $ messageSource m
+--  , S.messageBody    = messageText m
+--  , S.messageUser    = Nothing -- FIXME
+--  }
 
 withMessages :: Monad m => (Message -> m ()) -> S.Event -> m ()
 withMessages f (S.MessageEvent m) = f $ toMessage m
@@ -89,14 +99,14 @@ commandParser = do
   return (userId, msg)
 
 parseSlackCommand :: Bot -> Message -> Maybe Text
-parseSlackCommand bot msg@Message{..} =
+parseSlackCommand bot Message{..} =
   case parseOnly commandParser messageText of
     Right (_id, command) ->
       if _id == LT.toStrict (botUserId bot)
         then Just command
         else Nothing
     _ ->
-      if isDirect $ fromMessage msg
+      if messageDirect
         then Just messageText
         else Nothing
 
@@ -106,24 +116,30 @@ isDirect S.Message{..} = channelIsDirect && isFromAHuman
     channelIsDirect = T.isPrefixOf "D" messageChannel
     isFromAHuman    = isJust messageUser -- TODO: improve?
 
-sendSlackMessage :: MonadIO m => Bot -> Source -> Text -> m ()
-sendSlackMessage bot = S.sendMessage bot . channelIdForSource
+_sendToUser :: MonadIO m => Bot -> User -> Text -> m ()
+_sendToUser bot User{..} text = do
+  roomId <- getImRoomId userId
+  S.sendMessage bot roomId text
+  where
+    getImRoomId = error "getImRoomId"
 
-channelIdForSource :: Source -> Text
-channelIdForSource (SourceRoom t) = t
-channelIdForSource (SourceUser User{..}) = userId
+_sendToRoom :: MonadIO m => Bot -> Room -> Text -> m ()
+_sendToRoom bot Room{..} = S.sendMessage bot roomId
 
-getSlackRoomByName :: MonadIO m => Bot -> Text -> m (Maybe Source)
-getSlackRoomByName bot name = do
+channelToRoom :: S.Channel -> Room
+channelToRoom ch = Room
+  { roomId   = S.channelId ch
+  , roomName = S.channelName ch
+  }
+
+getSlackRoomByName :: MonadIO m => Bot -> Text -> m (Maybe Room)
+getSlackRoomByName bot text = do
   channels <- S.getChannels bot
-  let found = L.find (\c -> S.channelName c == name) channels
-  return $ case found of
-    Just ch -> Just . SourceRoom $ S.channelId ch
-    _       -> Nothing
+  return $ channelToRoom <$> L.find (\c -> text == S.channelName c) channels
 
-getSlackRoomMembers :: MonadIO m => Bot -> Source -> m [User]
-getSlackRoomMembers bot source = do
-  members <- S.getChannelMembers $ channelIdForSource source
+getSlackRoomMembers :: MonadIO m => Bot -> Room -> m [User]
+getSlackRoomMembers bot Room{..} = do
+  members <- S.getChannelMembers bot roomId
   return $ map memberToUser members
 
 memberToUser :: S.User -> User

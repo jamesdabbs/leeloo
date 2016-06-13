@@ -9,14 +9,16 @@ import Plugins.Base (whitespace)
 import           Data.Attoparsec.Text
 import           Data.Maybe     (isJust)
 import qualified Data.List      as L
+import qualified Data.Text      as T
 import qualified Data.Text.IO   as T
-import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy as LT
 import           System.IO
 
 adapter :: Adapter L
 adapter = Adapter
   { bootBot        = _bootBot
-  , sendMessage    = _sendMessage
+  , sendToUser     = _sendUser
+  , sendToRoom     = _sendRoom
   , parseCommand   = _parseCommand
   , getRoomByName  = _getRoomByName
   , getRoomMembers = _getRoomMembers
@@ -29,50 +31,70 @@ _bootBot (Entity _ bot@Bot{..}) = do
     loop :: L ()
     loop = do
       input <- liftIO $ do
-        T.putStr $ TL.toStrict botName <> " (here) > "
+        T.putStr $ LT.toStrict botName <> " (here) > "
         hFlush stdout
         T.getLine
       unless (input == "q") $ do
-        let msg = Message { messageSource = SourceRoom "here", messageText = input }
-        botDirectives adapter bot msg
+        case parseOnly messageParser input of
+          Left  err -> liftIO . putStrLn $ "Could not parse input: " ++ err
+          Right msg -> botDirectives adapter bot msg
         loop
   loop
 
-_sendMessage :: Bot -> Source -> Text -> L ()
-_sendMessage Bot{..} source text =
-  liftIO . T.putStrLn $ target <> "> " <> TL.toStrict botName <> ": " <> text
-  where
-    target = case source of
-      SourceRoom room     -> "room:"   <> room
-      SourceUser User{..} -> "direct:" <> userName
+_send :: LT.Text -> Text -> Text -> L ()
+_send bot target text = liftIO . T.putStrLn $ target <> "> " <> LT.toStrict bot <> ": " <> text
+
+_sendUser :: Bot -> User -> Text -> L ()
+_sendUser Bot{..} User{..} = _send botName ("direct:" <> userName)
+
+_sendRoom :: Bot -> Room -> Text -> L ()
+_sendRoom Bot{..} Room{..} = _send botName ("room:" <> roomName)
 
 _parseCommand :: Bot -> Message -> Maybe Text
 _parseCommand bot Message{..} = case parseOnly (commandParser bot) messageText of
   Left   _ -> Nothing
   Right mt -> mt
 
-_getRoomByName :: Bot -> Text -> L (Maybe Source)
-_getRoomByName _ name = return $ fst <$> L.find f rooms
-  where
-    f (SourceRoom room, _) = name == room
-    f _ = False
+_getRoomByName :: Bot -> Text -> L (Maybe Room)
+_getRoomByName _ = return . roomNamed
 
-_getRoomMembers :: Bot -> Source -> L [User]
-_getRoomMembers _ source = do
-  let found = L.find (\(s,_) -> s == source) rooms
+_getRoomMembers :: Bot -> Room -> L [User]
+_getRoomMembers _ room = do
+  let found = L.find (\(r,_) -> r == room) rooms
   return $ case found of
     Just (_, users) -> users
     Nothing         -> []
 
+word :: Parser Text
+word = T.pack <$> many' letter
+
+messageParser :: Parser Message
+messageParser = do
+  mRoomName <- optional $ "room:" *> word
+  let mRoom = case mRoomName of
+        Just name -> roomNamed name
+        Nothing   -> Just here
+  room <- case mRoom of
+        Just r  -> return r
+        Nothing -> mzero
+
+  mDirect <- optional "dm:"
+  whitespace
+  rest <- takeText
+  return Message
+    { messageRoom   = room
+    , messageUser   = me
+    , messageText   = rest
+    , messageDirect = isJust mDirect
+    }
+
 
 commandParser :: Bot -> Parser (Maybe Text)
 commandParser Bot{..} = do
-  direct <- optional $ string "dm:"
-  whitespace
-  name <- optional $ string ("@" <> TL.toStrict botName)
+  name <- optional $ string ("@" <> LT.toStrict botName)
   whitespace
   rest <- takeText
-  return $ if isJust direct || name == (Just $ TL.toStrict botName)
+  return $ if isJust name
     then Just rest
     else Nothing
 
@@ -80,12 +102,15 @@ me, you :: User
 me  = User "1" "me"
 you = User "2" "you"
 
-here, there :: Source
-here  = SourceRoom "here"
-there = SourceRoom "there"
+here, there :: Room
+here  = Room "A" "here"
+there = Room "B" "there"
 
-rooms :: [(Source, [User])]
+rooms :: [(Room, [User])]
 rooms =
   [ (here,  [me, you])
   , (there, [you])
   ]
+
+roomNamed :: Text -> Maybe Room
+roomNamed name = fst <$> L.find (\(r,_) -> roomName r == name) rooms
