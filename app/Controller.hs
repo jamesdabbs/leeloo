@@ -7,18 +7,15 @@ module Controller
   ) where
 
 import Base
-import Model
 
 import Data.Aeson
-import Servant
 
-import Bot  (getBot, getStatuses, runBot, saveBot, savedBots)
-import Bots (buildSlackBot)
+import App          (L, bots)
+import Bot          (getBot, runBot, saveBot)
+import Bots         (buildSlackBot)
+import Bot.Registry (BotStatus(..), getStatuses)
 
-import qualified Adapters.Slack as S
 import qualified Adapters.Slack.Api as S (getBotInfo)
-
-import qualified Data.Text.Lazy as LT
 
 instance FromJSON BotInfo where
   parseJSON = withObject "bot_info" $ \v -> do
@@ -26,40 +23,27 @@ instance FromJSON BotInfo where
     botInfoIcon  <- v .: "icon"
     return BotInfo{..}
 
-instance ToJSON (Entity Bot) where
-  toJSON (Entity _id Bot{..}) = object
-    [ "id"       .= _id
-    , "slack_id" .= botUserId
-    , "name"     .= botName
-    , "token"    .= botToken
-    , "icon"     .= botIcon
-    ]
-
 instance ToJSON BotStatus where
   toJSON BotStatus{..} = object
     [ "bot"    .= botSpec
     , "thread" .= thread
     ]
     where
-      thread = case botThreadId of
-        Nothing -> Nothing
-        Just t  -> Just . drop 9 $ show t
+      thread = drop 9 $ show botThreadId
 
 botIndex :: L [BotStatus]
-botIndex = do
-  specs   <- savedBots
-  running <- asks bots
-  liftIO $ getStatuses running specs
+botIndex = asks bots >>= getStatuses
 
 botCreate :: BotInfo -> L ()
 botCreate info = do
-  record <- S.getBotInfo info >>= saveBot
+  record <- S.getBotInfo info
+  saveBot record
   runBot $ buildSlackBot record
 
 botStart :: BotId -> L ()
 botStart _id = do
   record <- getBot _id
-  $logInfo $ "Starting bot: " <> (LT.toStrict . botName $ entityVal record)
+  $logInfo $ "Starting bot: " <> botName record
   runBot $ buildSlackBot record
 
 botStop :: BotId -> L ()

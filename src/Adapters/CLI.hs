@@ -11,8 +11,10 @@ import           Data.Maybe     (isJust)
 import qualified Data.List      as L
 import qualified Data.Text      as T
 import qualified Data.Text.IO   as T
-import qualified Data.Text.Lazy as LT
 import           System.IO
+
+import App
+import Plugin
 
 adapter :: Adapter L
 adapter = Adapter
@@ -26,13 +28,13 @@ adapter = Adapter
 
 _bootBot :: BotSpec L -> L ()
 _bootBot spec@BotSpec{..} = do
-  let (Entity _ bot@Bot{..}) = botRecord
+  let Bot{..} = botRecord
   liftIO . putStrLn $ "Starting " ++ show botName
   let
     loop :: L ()
     loop = do
       input <- liftIO $ do
-        T.putStr $ LT.toStrict botName <> " (here) > "
+        T.putStr $ botName <> " (here) > "
         hFlush stdout
         T.getLine
       unless (input == "q") $ do
@@ -42,8 +44,8 @@ _bootBot spec@BotSpec{..} = do
         loop
   loop
 
-_send :: LT.Text -> Text -> Text -> L ()
-_send bot target text = liftIO . T.putStrLn $ target <> "> " <> LT.toStrict bot <> ": " <> text
+_send :: Text -> Text -> Text -> L ()
+_send bot target text = liftIO . T.putStrLn $ target <> "> " <> bot <> ": " <> text
 
 _sendUser :: Bot -> User -> Text -> L ()
 _sendUser Bot{..} User{..} = _send botName ("direct:" <> userName)
@@ -90,7 +92,7 @@ messageParser = do
 
 commandParser :: Bot -> Parser (Maybe Text)
 commandParser Bot{..} = do
-  name <- optional $ string ("@" <> LT.toStrict botName)
+  name <- optional $ string ("@" <> botName)
   whitespace
   rest <- takeText
   return $ if isJust name

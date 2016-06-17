@@ -15,24 +15,11 @@ import Control.Monad.Trans.Except   as Base (ExceptT)
 import Control.Monad.Trans.Resource as Base (MonadBaseControl)
 import Data.Monoid                  as Base ((<>))
 import Data.Text                    as Base (Text)
-import Database.Persist             as Base (Entity(..), Key(..))
+import Data.Text.Encoding           as Base (encodeUtf8, decodeUtf8)
 
 import Types as Base
 
 import qualified Debug.Trace as Debug
-
--- TODO: These helpers probably belong elsewhere ...
-import Database.Persist.Sqlite as Sqlite
-import Model (migrateAll)
-
-withDB :: (MonadIO m, MonadBaseControl IO m, MonadLogger m)
-       => (ConnectionPool -> m a) -> m a
-withDB action = Sqlite.withSqlitePool "db/dev.sqlite3" 1 $ \pool -> do
-  Sqlite.runSqlPool (Sqlite.runMigration Model.migrateAll) pool
-  action pool
-
-runDB :: (MonadReader AppConf m, Monad m, MonadIO m) => SqlPersistT IO a -> m a
-runDB p = asks db >>= liftIO . runSqlPool p
 
 tr :: Show a => a -> b -> b
 tr = Debug.traceShow

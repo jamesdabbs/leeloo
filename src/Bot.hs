@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Bot
   ( bootSaved
   , botDirectives
@@ -11,32 +12,60 @@ module Bot
   ) where
 
 import Base
-import Model
+import App
+import Plugin
 import Servant (throwError)
 
 import Bot.Registry (getStatuses, newBotRegistry)
 
-import qualified Data.List as L
-import Database.Persist
+import           Data.Aeson
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.List  as L
+import           Database.Redis.Namespace (RedisNS, runRedisNS)
+import qualified Database.Redis.Namespace as R
 
-savedBots :: L [Entity Bot]
-savedBots = runDB $ selectList [] []
+instance ToJSON Bot where
+  toJSON Bot{..} = object
+    [ "id"      .= botId
+    , "name"    .= botName
+    , "icon"    .= botIcon
+    , "token"   .= botToken
+    , "user_id" .= botUserId
+    ]
 
-saveBot :: Bot -> L (Entity Bot)
-saveBot b = runDB $ upsert b []
+instance FromJSON Bot where
+  parseJSON = withObject "bot" $ \v -> do
+    botId     <- v .: "id"
+    botName   <- v .: "name"
+    botIcon   <- v .: "icon"
+    botToken  <- v .: "token"
+    botUserId <- v .: "user_id"
+    return Bot{..}
 
-getBot :: BotId -> L (Entity Bot)
-getBot _id = runDB (get _id) >>= \case
-  Just r  -> return $ Entity _id r
-  Nothing -> throwError NotFound
+redis c = do
+  conn <- asks redisConn
+  liftIO $ runRedisNS conn "leeloo" c
+
+savedBots :: L [Bot]
+savedBots = error "savedBots" -- runDB $ selectList [] []
+
+saveBot :: Bot -> L ()
+saveBot b = void . redis $ R.set key val
+  where
+    key = encodeUtf8 $ "bot" <> botId b
+    val = LBS.toStrict $ encode b
+
+getBot :: BotId -> L Bot
+getBot _id = error "getBot" -- redis $ R.get key
+  where
+    key = encodeUtf8 $ "bot" <> _id
 
 runBot :: Monad m => BotSpec m -> m ()
 runBot spec@BotSpec{..} = bootBot botAdapter spec
 
 botDirectives :: MonadIO m => BotSpec m -> Message -> m ()
 botDirectives BotSpec{..} msg = do
-  let (Entity _ bot) = botRecord
-  let applicable = L.filter (\p -> pluginApplies p bot msg) botPlugins
+  let applicable = L.filter (\p -> pluginApplies p botRecord msg) botPlugins
 
   -- TODO:
   -- * ensure that plugins run in isolation and crash safely
@@ -44,9 +73,9 @@ botDirectives BotSpec{..} msg = do
   unless (null applicable) $ do
     let names = L.map pluginName applicable
     liftIO . putStrLn $ show msg ++ " matches plugins " ++ show names
-    forM_ applicable $ \p -> runPlugin p bot msg
+    forM_ applicable $ \p -> runPlugin p botRecord msg
 
-buildBot :: Adapter m -> [Adapter m -> Plugin m] -> Entity Bot -> BotSpec m
+buildBot :: Adapter m -> [Adapter m -> Plugin m] -> Bot -> BotSpec m
 buildBot botAdapter plugs botRecord =
   let botPlugins = map ($ botAdapter) plugs
   in BotSpec{..}

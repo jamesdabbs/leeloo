@@ -19,13 +19,14 @@ import qualified Data.List            as L
 import           Data.Maybe           (isJust)
 import qualified Data.Text            as T
 import qualified Data.Text.IO         as T
-import qualified Data.Text.Lazy       as LT
 import           Network.Socket       (withSocketsDo)
 import qualified Network.WebSockets   as WS
 import qualified Wuss                 as WS (runSecureClient)
 
+import App
 import Bot          (botDirectives)
 import Bot.Registry (addBot)
+import Plugin
 import Plugins.Base (whitespace)
 
 
@@ -41,17 +42,16 @@ adapter = Adapter
 
 _bootBot :: BotSpec L -> L ()
 _bootBot spec@BotSpec{..} = do
-  let (Entity _ bot) = botRecord
   conf <- ask
   void . liftIO . withSocketsDo $ do
-    url <- S.getWebsocket bot
+    url <- S.getWebsocket botRecord
     let (domain, path) = T.breakOn "/" . T.drop 6 $ url
 
     WS.runSecureClient (T.unpack domain) 443 (T.unpack path) $ \conn -> do
       WS.forkPingThread conn 15
 
       -- TODO: don't hardcode this
-      S.sendMessage bot "G087UQUDA" "Reporting for duty"
+      S.sendMessage botRecord "G087UQUDA" "Reporting for duty"
 
       pid <- forkIO . forever $ WS.receiveData conn >>= dispatchEvents conf spec
       addBot (bots conf) botRecord pid
@@ -66,7 +66,7 @@ dispatchEvents conf spec msg = runBot conf bot $ case eitherDecode msg of
   Left  err   -> liftIO . T.putStrLn $ "Failed to parse event: " <> T.pack err
   Right event -> withMessages (botDirectives spec) event
   where
-    bot = entityVal $ botRecord spec
+    bot = botRecord spec
 
 toMessage :: S.Message -> Message
 toMessage sm =
@@ -97,7 +97,7 @@ parseSlackCommand :: Bot -> Message -> Maybe Text
 parseSlackCommand bot Message{..} =
   case parseOnly commandParser messageText of
     Right (_id, command) ->
-      if _id == LT.toStrict (botUserId bot)
+      if _id == botUserId bot
         then Just command
         else Nothing
     _ ->

@@ -1,10 +1,14 @@
- module Bots
-  ( demo
-  , buildSlackBot
-  ) where
+{-# LANGUAGE FlexibleContexts #-}
+module Bots
+ ( demo
+ , buildSlackBot
+ , mkConf
+ ) where
 
 import Base
+import App
 import Bot
+import Plugin
 
 import Plugins.Base
 import qualified Plugins.Panic as P
@@ -12,13 +16,16 @@ import qualified Plugins.Panic as P
 import qualified Adapters.CLI as CLI
 import qualified Adapters.Slack as Slack
 
-demo :: L ()
+demo :: IO ()
 demo = do
-  b:_ <- savedBots
-  runBot $ buildBot CLI.adapter defaultPlugins b
+  conf <- mkConf
+  result <- runL conf $ do
+    b <- head <$> savedBots
+    runBot $ buildBot CLI.adapter defaultPlugins b
+  either (error . show) return result
 
-defaultPlugins :: MonadIO m => [Adapter m -> Plugin m]
+defaultPlugins :: (MonadReader Namespace m, MonadIO m) => [Adapter m -> Plugin m]
 defaultPlugins = [echo, help, P.check, P.record, P.export]
 
-buildSlackBot :: Entity Bot -> BotSpec L
+buildSlackBot :: Bot -> BotSpec L
 buildSlackBot = buildBot Slack.adapter defaultPlugins

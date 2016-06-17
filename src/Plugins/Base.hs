@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Rank2Types #-}
 module Plugins.Base
   ( onComment
@@ -10,23 +11,23 @@ module Plugins.Base
   ) where
 
 import Base
+import Plugin
 
 import           Data.Attoparsec.Text
-import           Data.Maybe           (fromJust)
 import qualified Data.Text            as T
 
 type B a m = MonadIO m => Adapter m -> Bot -> Message -> a -> m ()
 
 
-reply :: MonadIO m => Adapter m -> Bot -> Message -> Text -> m ()
+reply :: (MonadReader Namespace m, MonadIO m) => Adapter m -> Bot -> Message -> Text -> m ()
 reply a bot msg@Message{..} text = if messageDirect
   then sendToUser a bot messageUser text
   else sendToRoom a bot messageRoom text
 
-echo :: MonadIO m => Adapter m -> Plugin m
+echo :: (MonadReader Namespace m, MonadIO m) => Adapter m -> Plugin m
 echo a = mkPlugin a "Echo back a string" [] True ("echo " *> takeText) $ reply a
 
-help :: MonadIO m => Adapter m -> Plugin m
+help :: (MonadReader Namespace m, MonadIO m) => Adapter m -> Plugin m
 help a = mkPlugin a "Display help" [] False (string "help") $ \bot msg _ ->
   reply a bot msg "Should say something helpful here"
 

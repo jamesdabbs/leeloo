@@ -25,26 +25,29 @@ replyTo bot S.Message{..} = sendMessage bot messageChannel
 
 sendMessage :: MonadIO m => Bot -> S.ChannelId -> Text -> m ()
 sendMessage Bot{..} channel body = do
-  resp <- slackRequest (LT.toStrict botToken) "chat.postMessage" $
+  resp <- slackRequest botToken "chat.postMessage" $
     \p -> p & param "channel"     .~ [channel]
             & param "text"        .~ [body]
-            & param "username"    .~ [LT.toStrict botName]
+            & param "username"    .~ [botName]
             & param "as_user"     .~ ["false" :: Text]
-            & param "icon_emoji"  .~ [LT.toStrict botIcon]
+            & param "icon_emoji"  .~ [botIcon]
   return ()
 
 getWebsocket :: Bot -> IO Text
 getWebsocket Bot{..} = do
-  r <- slackRequest (LT.toStrict botToken) "rtm.start" id
+  r <- slackRequest botToken "rtm.start" id
   return $ r ^. responseBody . key "url" . _String
 
 getBotInfo :: MonadIO m => BotInfo -> m Bot
 getBotInfo BotInfo{..} = do
   r <- slackRequest botInfoToken "auth.test" id
-  let botName   = LT.fromStrict $ r ^. responseBody . key "user" . _String
-      botUserId = LT.fromStrict $ r ^. responseBody . key "user_id" . _String
-      botToken  = LT.fromStrict botInfoToken
-      botIcon   = LT.fromStrict $ ":" <> botInfoIcon <> ":"
+  let k str = r ^. responseBody . key str . _String
+      botName   = k "user"
+      botUserId = k "user_id"
+      botToken  = botInfoToken
+      botIcon   = ":" <> botInfoIcon <> ":"
+      teamId    = k "team_id"
+      botId     = "slack:" <> teamId <> ":" <> botUserId
   return Bot{..}
 
 getChannels :: MonadIO m => Bot -> m [S.Channel]

@@ -15,8 +15,9 @@ module Api
 import Servant
 
 import Base
+import App
+import Bot.Registry (BotStatus)
 import qualified Controller as C
-import Model
 
 import qualified Network.Wai as W
 

@@ -1,6 +1,0 @@
-Bot
-  name   Text
-  icon   Text
-  token  Text
-  userId Text
-  UniqueToken token

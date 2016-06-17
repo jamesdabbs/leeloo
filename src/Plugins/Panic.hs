@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Plugins.Panic
   ( check
   , record
@@ -5,13 +6,13 @@ module Plugins.Panic
   ) where
 
 import Base
-import Model
+import Plugin
 import Plugins.Base
 
 import Data.Attoparsec.Text
 import qualified Data.Text as T
 
-check :: MonadIO m => Adapter m -> Plugin m
+check :: (MonadReader Namespace m, MonadIO m) => Adapter m -> Plugin m
 check a = mkPlugin a "Check panic" [] True checkP $ \bot msg mroom -> do
   reply a bot msg "I don't know, but I'll ask them"
   getRoom a bot msg mroom >>= \case
@@ -26,7 +27,7 @@ checkP = do
   optional (string "in " *> word)
 
 
-record :: MonadIO m => Adapter m -> Plugin m
+record :: (MonadReader Namespace m, MonadIO m) => Adapter m -> Plugin m
 record a = mkPlugin a "Record panic levels" [] True recordP $ \bot msg@Message{..} n -> do
   respondToPoll a bot messageUser n
   sendToUser a bot messageUser $ T.pack $ show n <> ", got it"
@@ -37,7 +38,7 @@ recordP = do
   return $ read [d]
 
 
-export :: MonadIO m => Adapter m -> Plugin m
+export :: (MonadReader Namespace m, MonadIO m) => Adapter m -> Plugin m
 export a = mkPlugin a "Export all panic scores" [] True (string "export panic") $ \bot msg _ ->
   error "export panic"
 

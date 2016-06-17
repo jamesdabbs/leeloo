@@ -26,12 +26,13 @@ library
                      , Adapters.Slack
                      , Adapters.Slack.Api
                      , Adapters.Slack.Types
+                     , App
                      , Base
                      , Bot
                      , Bots
                      , Bot.Registry
                      , Logging
-                     , Model
+                     , Plugin
                      , Plugins.Base
                      , Plugins.Panic
                      , Types
@@ -42,14 +43,13 @@ library
                      , containers
                      , either
                      , fast-logger
+                     , hedis
+                     , hedis-namespace
                      , lens
                      , lens-aeson
                      , monad-logger
                      , mtl
                      , network
-                     , persistent
-                     , persistent-template
-                     , persistent-sqlite
                      , resourcet
                      , servant-server
                      , text

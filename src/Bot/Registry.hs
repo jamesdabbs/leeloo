@@ -1,28 +1,33 @@
 {-# LANGUAGE FlexibleInstances #-}
 module Bot.Registry
-  ( addBot
+  ( BotRegistry
+  , BotStatus(..)
+  , addBot
   , getStatuses
   , newBotRegistry
   ) where
 
 import Base
-import Model (Bot(..))
 
-import           Data.IORef           (newIORef, readIORef, atomicModifyIORef')
+import           Data.IORef           (IORef, newIORef, readIORef, atomicModifyIORef')
 import qualified Data.Map             as Map
 
-newBotRegistry :: IO BotRegistry
-newBotRegistry = newIORef Map.empty
+type BotRegistry = IORef (Map.Map BotId BotStatus)
 
-addBot :: BotRegistry -> Entity Bot -> ThreadId -> IO ()
-addBot registry (Entity _id _) pid = atomicModifyIORef' registry $ \m -> (Map.insert _id pid m, ())
+data BotStatus = BotStatus
+  { botSpec     :: !Bot
+  , botThreadId :: !ThreadId
+  -- TODO: other metadata, last checkin, list of plugins, &c.
+  }
 
-getStatuses :: BotRegistry -> [Entity Bot] -> IO [BotStatus]
-getStatuses registry bots = do
-  threads <- readIORef registry
-  return $ map (fetch threads) bots
+newBotRegistry :: MonadIO m => m BotRegistry
+newBotRegistry = liftIO $ newIORef Map.empty
+
+addBot :: MonadIO m => BotRegistry -> Bot -> ThreadId -> m ()
+addBot registry bot thread = liftIO . atomicModifyIORef' registry $ \m -> (update m, ())
   where
-    fetch ts bot = BotStatus
-      { botSpec     = bot
-      , botThreadId = Map.lookup (entityKey bot) ts
-      }
+    update    = Map.insert (botId bot) botStatus
+    botStatus = BotStatus { botSpec = bot, botThreadId = thread }
+
+getStatuses :: MonadIO m => BotRegistry -> m [BotStatus]
+getStatuses registry = liftIO $ Map.elems <$> readIORef registry

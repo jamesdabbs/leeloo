@@ -11,8 +11,7 @@ module Main where
 import Base
 import Api     (server)
 import Bot     (newBotRegistry, bootSaved)
-import Bots    (demo)
-import Logging (newLogger)
+import Bots    (demo, mkConf)
 
 import qualified Data.Text                as T
 import qualified Data.Text.IO             as T
@@ -20,17 +19,10 @@ import qualified Network.Wai.Handler.Warp as W
 import           Network.Wai.Middleware.RequestLogger (logStdoutDev)
 
 
-runApp :: (AppConf -> IO a) -> IO a
-runApp action = do
-  registry <- newBotRegistry
-  logger   <- newLogger
-  withDB $ \db -> liftIO . action $ AppConf db registry logger
-
 main :: IO ()
-main = runApp $ \conf -> do
+main = do
   T.putStrLn "Booting stored bots"
-  -- runL conf bootSaved >>= either (error . show) return
-  runL conf demo >>= either (error . show) return
+  demo
 
   -- let port = 3000
   -- T.putStrLn $ "Starting server on port " <> (T.pack $ show port)
