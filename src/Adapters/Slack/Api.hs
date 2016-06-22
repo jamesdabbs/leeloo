@@ -8,6 +8,7 @@ module Adapters.Slack.Api
   ) where
 
 import Base hiding (sendMessage)
+import Logging (apiCall)
 import qualified Adapters.Slack.Types as S
 
 import qualified Data.ByteString.Lazy as LBS
@@ -25,7 +26,7 @@ replyTo bot S.Message{..} = sendMessage bot messageChannel
 
 sendMessage :: MonadIO m => Bot -> S.ChannelId -> Text -> m ()
 sendMessage Bot{..} channel body = do
-  resp <- slackRequest botToken "chat.postMessage" $
+  resp <- slackRequest botName botToken "chat.postMessage" $
     \p -> p & param "channel"     .~ [channel]
             & param "text"        .~ [body]
             & param "username"    .~ [botName]
@@ -35,12 +36,12 @@ sendMessage Bot{..} channel body = do
 
 getWebsocket :: Bot -> IO Text
 getWebsocket Bot{..} = do
-  r <- slackRequest botToken "rtm.start" id
+  r <- slackRequest botName botToken "rtm.start" id
   return $ r ^. responseBody . key "url" . _String
 
 getBotInfo :: MonadIO m => BotInfo -> m Bot
 getBotInfo BotInfo{..} = do
-  r <- slackRequest botInfoToken "auth.test" id
+  r <- slackRequest "??" botInfoToken "auth.test" id
   let k str = r ^. responseBody . key str . _String
       botName   = k "user"
       botUserId = k "user_id"
@@ -60,17 +61,15 @@ getChannelMembers _ _ = do
   error "FIXME: getChannelMembers"
   return []
 
-slackRequest :: MonadIO m => Text -> Text -> (Options -> Options) -> m (Response LBS.ByteString)
-slackRequest token endpoint updater = do
+slackRequest :: MonadIO m => BotName -> BotToken -> Text -> (Options -> Options) -> m (Response LBS.ByteString)
+slackRequest name token endpoint updater = do
   let opts = defaults
            & param "token" .~ [token]
   let url  = "https://slack.com/api/" <> endpoint
   let form = [] :: [FormParam]
   liftIO $ do
-    -- TODO: better API request logging
-    print $ "Slack " <> endpoint
     r <- postWith (updater opts) (T.unpack url) form
-    print r
+    apiCall name endpoint r
     return r
 
 instance FromJSON S.Message where

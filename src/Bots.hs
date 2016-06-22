@@ -1,8 +1,9 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Bots
- ( demo
- , buildSlackBot
+ ( buildSlackBot
  , mkConf
+ , startCli
+ , startSavedBots
  ) where
 
 import Base
@@ -17,11 +18,17 @@ import qualified Plugins.Score as P
 import qualified Adapters.CLI as CLI
 import qualified Adapters.Slack as Slack
 
-demo :: IO ()
-demo = do
-  conf <- mkConf
+startCli :: AppConf -> IO ()
+startCli conf = do
+  putStrLn "Booting bot"
   result <- runL conf $ do
-    b <- head <$> savedBots
+    -- b <- head <$> savedBots
+    let b = Bot { botId     = "B01"
+                , botName   = "leeloo"
+                , botIcon   = "^_^"
+                , botToken  = "_token_"
+                , botUserId = "B01"
+                }
     runBot $ buildBot CLI.adapter defaultPlugins b
   either (error . show) return result
 
@@ -30,3 +37,8 @@ defaultPlugins = [echo, help, P.check, P.record, P.export, P.score, P.scoreUp, P
 
 buildSlackBot :: Bot -> BotSpec L
 buildSlackBot = buildBot Slack.adapter defaultPlugins
+
+startSavedBots :: L ()
+startSavedBots = do
+  bots <- savedBots
+  mapM_ (bootBot Slack.adapter . buildSlackBot) bots

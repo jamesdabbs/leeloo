@@ -15,8 +15,8 @@ import qualified Data.Text as T
 import Database.Redis.Namespace
 
 
-check :: MonadIO m => Plugin m
-check = mkPlugin "Check panic" True checkP [] $ \mroom -> do
+check :: BotM m => Plugin m
+check = mkPlugin "panic.check" True checkP [] $ \mroom -> do
   reply "I don't know, but I'll ask them"
   getRoom mroom >>= \case
     Just roomId -> startPoll roomId
@@ -30,8 +30,8 @@ checkP = do
   optional (string "in " *> word)
 
 
-record :: Monad m => Plugin m
-record = mkPlugin "Record panic levels" False recordP [] $ \n -> do
+record :: BotM m => Plugin m
+record = mkPlugin "panic.record" False recordP [] $ \n -> do
   user <- messageUser <$> message
   respondToPoll user n
   sendToUser user $ T.pack $ show n <> ", got it"
@@ -42,8 +42,8 @@ recordP = do
   return $ read [d]
 
 
-export :: Monad m => Plugin m
-export = mkPlugin "Export all panic scores" True (string "export panic") [] $ \_ ->
+export :: BotM m => Plugin m
+export = mkPlugin "panic.export" True (string "export panic") [] $ \_ ->
   error "export panic"
 
 
@@ -52,7 +52,7 @@ getRoom mname = case mname of
   Just name -> getRoomByName name
   _         -> Just . messageRoom <$> message
 
-startPoll :: MonadIO m => Room -> Handler m ()
+startPoll :: BotM m => Room -> Handler m ()
 startPoll source = do
   redis $ do
     set "foo" "1"
@@ -60,7 +60,7 @@ startPoll source = do
   members <- getRoomMembers source
   forM_ members $ \u -> sendToUser u "Hey, how are you doing today (on a scale of 1-6)?"
 
-respondToPoll :: Monad m => User -> Int -> Handler m ()
+respondToPoll :: BotM m => User -> Int -> Handler m ()
 respondToPoll user n = do
   poll <- activePollFor user
   when (n > 4) $

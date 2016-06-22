@@ -43,7 +43,6 @@ botCreate info = do
 botStart :: BotId -> L ()
 botStart _id = do
   record <- getBot _id
-  $logInfo $ "Starting bot: " <> botName record
   runBot $ buildSlackBot record
 
 botStop :: BotId -> L ()

@@ -10,6 +10,7 @@
 
 module Api
   ( server
+  , startApi
   ) where
 
 import Servant
@@ -17,9 +18,14 @@ import Servant
 import Base
 import App
 import Bot.Registry (BotStatus)
+import Bots (startSavedBots)
 import qualified Controller as C
 
-import qualified Network.Wai as W
+import qualified Data.Text                as T
+import qualified Data.Text.IO             as T
+import qualified Network.Wai              as W
+import qualified Network.Wai.Handler.Warp as W
+import           Network.Wai.Middleware.RequestLogger (logStdoutDev)
 
 type GET    a = Get    '[JSON] a
 type POST   a = Post   '[JSON] a
@@ -55,3 +61,9 @@ run conf l = liftIO (runL conf l) >>= \case
 
 coerceError :: AppError -> ServantErr
 coerceError = error "coercing error"
+
+startApi :: Int -> AppConf -> IO ()
+startApi port conf = do
+  runL conf startSavedBots
+  T.putStrLn $ "Starting server on port " <> T.pack (show port)
+  W.run port . logStdoutDev $ server conf

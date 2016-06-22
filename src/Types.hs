@@ -2,6 +2,8 @@ module Types
   ( Bot(..)
   , BotId
   , BotInfo(..)
+  , BotName
+  , BotToken
   , Message(..)
   , Namespace
   , Room(..)
@@ -16,13 +18,16 @@ type BotId = Text
 type RoomId = Text
 type UserId = Text
 
+type BotName = Text
+type BotToken = Text
+
 type Namespace = Text
 
 data Bot = Bot
   { botId     :: BotId
-  , botName   :: Text
+  , botName   :: BotName
   , botIcon   :: Text
-  , botToken  :: Text
+  , botToken  :: BotToken
   , botUserId :: UserId
   } deriving (Show, Eq)
 
@@ -45,6 +50,6 @@ data Message = Message -- an _incoming_ message
   } deriving Show
 
 data BotInfo = BotInfo
-  { botInfoToken :: Text
+  { botInfoToken :: BotToken
   , botInfoIcon  :: Text
   }

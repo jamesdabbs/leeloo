@@ -13,20 +13,20 @@ module Plugins.Base
   , word
   ) where
 
-import Base
-import Plugin hiding (Adapter(..))
+import           Base
+import           Plugin hiding (Adapter(..))
 import qualified Plugin as P
 
-import Control.Monad.Reader (lift)
+import           Control.Monad.Reader (lift)
 import           Data.Attoparsec.Text
-import qualified Data.Text            as T
-import Database.Redis.Namespace
+import qualified Data.Text as T
+import           Database.Redis.Namespace
 
-echo :: MonadIO m => Plugin m
-echo = mkPlugin "Echo back a string" True ("echo " *> takeText) [] reply
+echo :: BotM m => Plugin m
+echo = mkPlugin "echo" True ("echo " *> takeText) [] reply
 
-help :: MonadIO m => Plugin m
-help = mkPlugin "Display help" False (string "help") [] $ \_ ->
+help :: BotM m => Plugin m
+help = mkPlugin "help" False (string "help") [] $ \_ ->
   reply "Should say something helpful here"
 
 whitespace :: Parser ()
@@ -36,10 +36,10 @@ word :: Parser Text
 word = T.pack <$> many' letter
 
 message :: Monad m => Handler m Message
-message = asks snd
+message = asks handlerMessage
 
 bot :: Monad m => Handler m (BotSpec m)
-bot = asks fst
+bot = asks handlerBot
 
 reply :: Monad m => Text -> Handler m ()
 reply text = do
@@ -65,9 +65,9 @@ getRoomMembers room = do
   lift $ P.getRoomMembers botAdapter botRecord room
 
 redis q = do
-  let conn = error "redis bot connection"
-  ns <- botName . botRecord <$> bot -- TODO: verify uniqueness, ns by plugin name
-  res <- liftIO $ runRedisNS conn (encodeUtf8 ns) q
+  conn <- asks handlerRedisConn
+  ns   <- asks handlerNamespace
+  res  <- liftIO $ runRedisNS conn ns q
   case res of
     Left  _ -> error "left redis error"
     Right r -> return r

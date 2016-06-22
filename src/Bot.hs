@@ -1,7 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Bot
-  ( bootSaved
-  , botDirectives
+  ( botDirectives
   , buildBot
   , getBot
   , getStatuses
@@ -14,13 +13,14 @@ module Bot
 import Base
 import App
 import Plugin
-import Servant (throwError)
+import qualified Logging as Log
 
 import Bot.Registry (getStatuses, newBotRegistry)
 
 import           Data.Aeson
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.List  as L
+import qualified Database.Redis as R (Redis, Reply)
 import           Database.Redis.Namespace (RedisNS, runRedisNS)
 import qualified Database.Redis.Namespace as R
 
@@ -42,45 +42,52 @@ instance FromJSON Bot where
     botUserId <- v .: "user_id"
     return Bot{..}
 
+redis :: RedisNS R.Redis (Either R.Reply) a -> L (Either R.Reply a)
 redis c = do
   conn <- asks redisConn
   liftIO $ runRedisNS conn "leeloo" c
 
 savedBots :: L [Bot]
-savedBots = error "savedBots" -- runDB $ selectList [] []
+savedBots = do
+  eids <- redis $ R.smembers "bots"
+  case eids of
+    Left _ -> return []
+    Right ids -> mapM (getBot . decodeUtf8) ids -- TODO: mget?
 
 saveBot :: Bot -> L ()
-saveBot b = void . redis $ R.set key val
+saveBot b = void . redis $ do
+  R.set ("bots:" <> id) (LBS.toStrict $ encode b)
+  R.sadd "bots" [id]
   where
-    key = encodeUtf8 $ "bot" <> botId b
-    val = LBS.toStrict $ encode b
+    id = encodeUtf8 $ botId b
 
 getBot :: BotId -> L Bot
-getBot _id = error "getBot" -- redis $ R.get key
-  where
-    key = encodeUtf8 $ "bot" <> _id
+getBot _id = do
+  ejson <- redis $ R.get (encodeUtf8 $ "bots:" <> _id)
+  case ejson of
+    Right (Just json) -> case decode $ LBS.fromStrict json of
+      Just bot -> return bot
+      -- TODO: MonadError
+      Nothing  -> error "getBot: failed to decode saved bot"
+    Right _    -> error "getBot: id not found"
+    Left _     -> error "getBot: failed to search"
 
 runBot :: MonadIO m => BotSpec m -> m ()
-runBot spec@BotSpec{..} = bootBot botAdapter spec
+runBot spec@BotSpec{..} = do
+  Log.bootBot spec
+  bootBot botAdapter spec
 
 botDirectives :: MonadIO m => BotSpec m -> Message -> m ()
-botDirectives BotSpec{..} msg = do
-  let applicable = L.filter (\p -> pluginApplies p botRecord msg) botPlugins
+botDirectives b msg = do
+  let applicable = L.filter (\p -> pluginApplies p b msg) (botPlugins b)
 
   -- TODO:
   -- * ensure that plugins run in isolation and crash safely
   -- * enforce only one match?
   unless (null applicable) $ do
     let names = L.map pluginName applicable
-    liftIO . putStrLn $ show msg ++ " matches plugins " ++ show names
-    forM_ applicable $ \p -> runPlugin p botRecord msg
+    Log.pluginMatch (botRecord b) msg names
+    forM_ applicable $ \p -> runPlugin p b msg
 
 buildBot :: Adapter m -> [Plugin m] -> Bot -> BotSpec m
 buildBot botAdapter botPlugins botRecord = BotSpec{..}
-
-bootSaved :: Adapter L -> L ()
-bootSaved adapter = savedBots >>= mapM_ buildAndStart
-  where
-    defaultPlugins = error "defaultPlugins"
-    startBotSpec b = bootBot (botAdapter b) b
-    buildAndStart = startBotSpec . buildBot adapter defaultPlugins

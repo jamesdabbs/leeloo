@@ -20,6 +20,7 @@ import           Data.Monoid                 ((<>))
 import           Data.Text                   (Text)
 
 import Types
+import Plugin (BotM(..))
 import Bot.Registry
 import Logging (Logger, newLogger)
 
@@ -42,6 +43,9 @@ instance MonadLogger L where
   monadLoggerLog loc src lvl msg = do
     l <- asks logger
     liftIO . l $ toLogStr msg
+
+instance BotM L where
+  redisPool = asks redisConn
 
 runL' :: Monad m => AppConf -> L' m a -> m (Either AppError a)
 runL' conf m = runReaderT (runExceptT $ unL' m) conf
