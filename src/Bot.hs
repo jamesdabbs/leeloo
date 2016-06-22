@@ -60,7 +60,7 @@ getBot _id = error "getBot" -- redis $ R.get key
   where
     key = encodeUtf8 $ "bot" <> _id
 
-runBot :: Monad m => BotSpec m -> m ()
+runBot :: MonadIO m => BotSpec m -> m ()
 runBot spec@BotSpec{..} = bootBot botAdapter spec
 
 botDirectives :: MonadIO m => BotSpec m -> Message -> m ()
@@ -75,10 +75,8 @@ botDirectives BotSpec{..} msg = do
     liftIO . putStrLn $ show msg ++ " matches plugins " ++ show names
     forM_ applicable $ \p -> runPlugin p botRecord msg
 
-buildBot :: Adapter m -> [Adapter m -> Plugin m] -> Bot -> BotSpec m
-buildBot botAdapter plugs botRecord =
-  let botPlugins = map ($ botAdapter) plugs
-  in BotSpec{..}
+buildBot :: Adapter m -> [Plugin m] -> Bot -> BotSpec m
+buildBot botAdapter botPlugins botRecord = BotSpec{..}
 
 bootSaved :: Adapter L -> L ()
 bootSaved adapter = savedBots >>= mapM_ buildAndStart

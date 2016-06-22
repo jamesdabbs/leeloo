@@ -35,6 +35,7 @@ library
                      , Plugin
                      , Plugins.Base
                      , Plugins.Panic
+                     , Plugins.Score
                      , Types
   build-depends:       base >= 4.7 && < 5
                      , aeson

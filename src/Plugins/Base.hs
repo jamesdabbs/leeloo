@@ -1,58 +1,73 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Rank2Types #-}
 module Plugins.Base
-  ( onComment
-  , onCommand
-  , reply
-  , echo
+  ( echo
+  , getRoomByName
+  , getRoomMembers
   , help
+  , message
+  , redis
+  , reply
+  , sendToUser
   , whitespace
   , word
   ) where
 
 import Base
-import Plugin
+import Plugin hiding (Adapter(..))
+import qualified Plugin as P
 
+import Control.Monad.Reader (lift)
 import           Data.Attoparsec.Text
 import qualified Data.Text            as T
+import Database.Redis.Namespace
 
-type B a m = MonadIO m => Adapter m -> Bot -> Message -> a -> m ()
+echo :: MonadIO m => Plugin m
+echo = mkPlugin "Echo back a string" True ("echo " *> takeText) [] reply
 
-
-reply :: (MonadReader Namespace m, MonadIO m) => Adapter m -> Bot -> Message -> Text -> m ()
-reply a bot msg@Message{..} text = if messageDirect
-  then sendToUser a bot messageUser text
-  else sendToRoom a bot messageRoom text
-
-echo :: (MonadReader Namespace m, MonadIO m) => Adapter m -> Plugin m
-echo a = mkPlugin a "Echo back a string" [] True ("echo " *> takeText) $ reply a
-
-help :: (MonadReader Namespace m, MonadIO m) => Adapter m -> Plugin m
-help a = mkPlugin a "Display help" [] False (string "help") $ \bot msg _ ->
-  reply a bot msg "Should say something helpful here"
-
-
-onCommand :: MonadIO m => Parser a -> B a m
-          -> Adapter m -> Bot -> Message -> m ()
-onCommand matcher handler adapter bot msg@Message{..} =
-  case parseCommand adapter bot msg of
-    Just command ->
-      let msg' = msg { messageText = command }
-      in onComment matcher handler adapter bot msg'
-    _ -> return ()
-
-onComment :: MonadIO m => Parser a -> B a m
-          -> Adapter m -> Bot -> Message -> m ()
-onComment matcher handler adapter bot msg@Message{..} =
-  case parseOnly matcher messageText of
-    Right a -> do
-      liftIO . putStrLn $ "Running matched handler: " ++ show msg
-      handler adapter bot msg a
-    Left  _ -> return ()
-
+help :: MonadIO m => Plugin m
+help = mkPlugin "Display help" False (string "help") [] $ \_ ->
+  reply "Should say something helpful here"
 
 whitespace :: Parser ()
 whitespace = void . many . satisfy $ inClass [' ', '\t', '\n']
 
 word :: Parser Text
 word = T.pack <$> many' letter
+
+message :: Monad m => Handler m Message
+message = asks snd
+
+bot :: Monad m => Handler m (BotSpec m)
+bot = asks fst
+
+reply :: Monad m => Text -> Handler m ()
+reply text = do
+  BotSpec{..} <- bot
+  Message{..} <- message
+  if messageDirect
+    then sendToUser messageUser text
+    else lift $ P.sendToRoom botAdapter botRecord messageRoom text
+
+sendToUser :: Monad m => User -> Text -> Handler m ()
+sendToUser user text = do
+  BotSpec{..} <- bot
+  lift $ P.sendToUser botAdapter botRecord user text
+
+getRoomByName :: Monad m => Text -> Handler m (Maybe Room)
+getRoomByName name = do
+  BotSpec{..} <- bot
+  lift $ P.getRoomByName botAdapter botRecord name
+
+getRoomMembers :: Monad m => Room -> Handler m [User]
+getRoomMembers room = do
+  BotSpec{..} <- bot
+  lift $ P.getRoomMembers botAdapter botRecord room
+
+redis q = do
+  let conn = error "redis bot connection"
+  ns <- botName . botRecord <$> bot -- TODO: verify uniqueness, ns by plugin name
+  res <- liftIO $ runRedisNS conn (encodeUtf8 ns) q
+  case res of
+    Left  _ -> error "left redis error"
+    Right r -> return r

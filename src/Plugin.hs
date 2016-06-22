@@ -3,9 +3,9 @@ module Plugin
   ( Adapter(..)
   , BotSpec(..)
   , Example(..)
+  , Handler
   , Plugin
   , mkPlugin
-  , namespace
   , pluginApplies
   , pluginName
   , runPlugin
@@ -13,9 +13,17 @@ module Plugin
 
 import Base
 
-import           Control.Monad.Reader        (local)
+import           Control.Monad.Reader        (ReaderT, local)
 import           Data.Attoparsec.Text        (Parser, parseOnly)
 import           Data.Maybe                  (isNothing)
+import           Database.Redis.Namespace    (RedisNS)
+
+-- data HandlerCtx m = HandlerCtx
+--   { handlerName    :: ByteString
+--   , handlerBot     :: BotSpec m
+--   , handlerMessage :: Message
+--   }
+type Handler m a = ReaderT (BotSpec m, Message) m a
 
 data Example = Example
   { exampleTexts       :: [Text]
@@ -54,13 +62,13 @@ data Monad m => Adapter m = Adapter
   , getRoomMembers :: Bot -> Room -> m [User]
   }
 
-checkParser :: Parser a -> Bot -> Message -> Maybe ()
+checkParser :: Parser a -> BotSpec m -> Message -> Maybe ()
 checkParser parser bot Message{..} =
   case parseOnly parser messageText of
     Right _ -> Nothing
     Left  _ -> Just ()
 
-runParser :: Monad m => Parser a -> (Bot -> Message -> a -> m ()) -> Bot -> Message -> m ()
+runParser :: Monad m => Parser a -> (BotSpec m -> Message -> a -> m ()) -> BotSpec m -> Message -> m ()
 runParser parser handler bot msg@Message{..} =
   case parseOnly parser messageText of
     Right r -> handler bot msg r
@@ -75,37 +83,34 @@ pluginName = pName
 runPlugin :: Monad m => Plugin m -> Bot -> Message -> m ()
 runPlugin = pRun
 
-namespace :: (MonadReader Namespace m) => Namespace -> m a -> m a
-namespace extra = local $ \ns -> ns <> ":" <> extra
-
-mkPlugin :: (MonadReader Namespace m, Monad m)
-         => Adapter m
-         -> Text
-         -> [Example]
+mkPlugin :: Monad m
+         => Text
          -> Bool
          -> Parser a
-         -> (Bot -> Message -> a -> m ())
+         -> [Example]
+         -> (a -> Handler m ())
          -> Plugin m
-mkPlugin adapter name examples commandOnly parser handler = verifyPlugin Plugin
-  { pName     = name
-  , pExamples = examples
-  , pCommand  = commandOnly
-  , pAdapter  = adapter
-  , pTest     = withCommand $ checkParser parser
-  , pRun      = withCommand . runParser parser $ namespaced handler
-  }
-  where
-    namespaced handler bot m a = namespace (fullname bot) $ handler bot m a
-
-    fullname bot = botId bot <> ":" <> name
-
-    withCommand :: Monad m => (Bot -> Message -> m ()) -> Bot -> Message -> m ()
-    withCommand f b m = case parseCommand adapter b m of
-      Just text -> f b $ m { messageText = text }
-      _ -> -- This didn't match the command format for the given adapter
-        if commandOnly
-          then return ()
-          else f b m
+mkPlugin = error "mkPlugin"
+-- mkPlugin name commandOnly parser examples handler = verifyPlugin Plugin
+--   { pName     = name
+--   , pExamples = examples
+--   , pCommand  = commandOnly
+--   , pTest     = withCommand $ checkParser parser
+--   , pRun      = withCommand . runParser parser $ namespaced handler
+--   }
+--   where
+--     namespaced = id
+-- 
+--     fullname bot = botId bot <> ":" <> name
+-- 
+--     withCommand :: Monad m => (Bot -> Message -> m ()) -> Bot -> Message -> m ()
+--     withCommand = id
+--     -- withCommand f b m = case parseCommand adapter b m of
+--     --   Just text -> f b $ m { messageText = text }
+--     --   _ -> -- This didn't match the command format for the given adapter
+--     --     if commandOnly
+--     --       then return ()
+--     --       else f b m
 
 verifyPlugin :: Plugin m -> Plugin m
 verifyPlugin = id -- TODO: check that all examples do successfully parse

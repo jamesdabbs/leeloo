@@ -22,8 +22,9 @@ import           Network.Wai.Middleware.RequestLogger (logStdoutDev)
 main :: IO ()
 main = do
   T.putStrLn "Booting stored bots"
-  demo
+  -- demo
 
-  -- let port = 3000
-  -- T.putStrLn $ "Starting server on port " <> (T.pack $ show port)
-  -- W.run port . logStdoutDev $ server conf
+  conf <- mkConf
+  let port = 3000
+  T.putStrLn $ "Starting server on port " <> (T.pack $ show port)
+  W.run port . logStdoutDev $ server conf

@@ -6,18 +6,21 @@ module Plugins.Panic
   ) where
 
 import Base
-import Plugin
+import Plugin hiding (Adapter(..))
 import Plugins.Base
 
 import Data.Attoparsec.Text
 import qualified Data.Text as T
 
-check :: (MonadReader Namespace m, MonadIO m) => Adapter m -> Plugin m
-check a = mkPlugin a "Check panic" [] True checkP $ \bot msg mroom -> do
-  reply a bot msg "I don't know, but I'll ask them"
-  getRoom a bot msg mroom >>= \case
-    Just roomId -> startPoll a bot msg roomId
-    Nothing -> reply a bot msg "Sorry ... I couldn't figure out what room you meant"
+import Database.Redis.Namespace
+
+
+check :: MonadIO m => Plugin m
+check = mkPlugin "Check panic" True checkP [] $ \mroom -> do
+  reply "I don't know, but I'll ask them"
+  getRoom mroom >>= \case
+    Just roomId -> startPoll roomId
+    Nothing -> reply "Sorry ... I couldn't figure out what room you meant"
 
 checkP :: Parser (Maybe Text)
 checkP = do
@@ -27,10 +30,11 @@ checkP = do
   optional (string "in " *> word)
 
 
-record :: (MonadReader Namespace m, MonadIO m) => Adapter m -> Plugin m
-record a = mkPlugin a "Record panic levels" [] True recordP $ \bot msg@Message{..} n -> do
-  respondToPoll a bot messageUser n
-  sendToUser a bot messageUser $ T.pack $ show n <> ", got it"
+record :: Monad m => Plugin m
+record = mkPlugin "Record panic levels" False recordP [] $ \n -> do
+  user <- messageUser <$> message
+  respondToPoll user n
+  sendToUser user $ T.pack $ show n <> ", got it"
 
 recordP :: Parser Int
 recordP = do
@@ -38,26 +42,29 @@ recordP = do
   return $ read [d]
 
 
-export :: (MonadReader Namespace m, MonadIO m) => Adapter m -> Plugin m
-export a = mkPlugin a "Export all panic scores" [] True (string "export panic") $ \bot msg _ ->
+export :: Monad m => Plugin m
+export = mkPlugin "Export all panic scores" True (string "export panic") [] $ \_ ->
   error "export panic"
 
 
-getRoom :: Monad m => Adapter m -> Bot -> Message -> Maybe Text -> m (Maybe Room)
-getRoom a bot Message{..} mname = case mname of
-  Just name -> getRoomByName a bot name
-  _         -> return $ Just messageRoom
+getRoom :: Monad m => Maybe Text -> Handler m (Maybe Room)
+getRoom mname = case mname of
+  Just name -> getRoomByName name
+  _         -> Just . messageRoom <$> message
 
-startPoll :: MonadIO m => Adapter m -> Bot -> Message -> Room -> m ()
-startPoll adapter bot msg source = do
-  members <- getRoomMembers adapter bot source
-  forM_ members $ \u -> sendToUser adapter bot u "Hey, how are you doing today (on a scale of 1-6)?"
+startPoll :: MonadIO m => Room -> Handler m ()
+startPoll source = do
+  redis $ do
+    set "foo" "1"
+    set "bar" "2"
+  members <- getRoomMembers source
+  forM_ members $ \u -> sendToUser u "Hey, how are you doing today (on a scale of 1-6)?"
 
-respondToPoll :: MonadIO m => Adapter m -> Bot -> User -> Int -> m ()
-respondToPoll adapter bot user n = do
+respondToPoll :: Monad m => User -> Int -> Handler m ()
+respondToPoll user n = do
   poll <- activePollFor user
   when (n > 4) $
-    sendToUser adapter bot (pollPoster poll) $ "FYI, " <> (T.pack $ show user) <> " is at a " <> (T.pack $ show n)
+    sendToUser (pollPoster poll) $ "FYI, " <> (T.pack $ show user) <> " is at a " <> (T.pack $ show n)
   recordPollResponse poll user n
 
 data Poll = Poll
