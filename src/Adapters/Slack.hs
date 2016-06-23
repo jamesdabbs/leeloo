@@ -1,5 +1,4 @@
 -- TODO:
--- * connect each adapter to Redis, namespaced by bot name
 -- * cache userId => user and channelId => channel lookups
 module Adapters.Slack
   ( adapter
@@ -11,7 +10,8 @@ import Base
 import qualified Adapters.Slack.Api as S
 import qualified Adapters.Slack.Types as S
 
-import           Control.Concurrent   (forkIO)
+import           Control.Concurrent   (forkIO, forkFinally)
+import           Control.Exception    (IOException)
 import           Data.Aeson           (eitherDecode)
 import           Data.Attoparsec.Text
 import qualified Data.ByteString.Lazy as LBS
@@ -53,7 +53,18 @@ _bootBot spec@BotSpec{..} = do
       -- TODO: don't hardcode this
       S.sendMessage botRecord "G087UQUDA" "Reporting for duty"
 
-      pid <- forkIO . forever $ WS.receiveData conn >>= dispatchEvents conf spec
+      let loop = forever $ WS.receiveData conn >>= dispatchEvents conf spec
+          reloop = forkFinally loop $ \res -> do
+            case res of
+              Left e -> do
+                -- TODO: send this to e.g. Rollbar
+                -- - would it be better to have Redis queue of bots to boot, and a separate manager, rather than
+                -- - have each proccess reboot itself? Probably.
+                T.putStrLn $ "Rebooting " <> botName botRecord <> " after exiting with error " <> (T.pack $ show e)
+              Right _ -> return ()
+            void reloop
+
+      pid <- reloop
       addBot (bots conf) botRecord pid
 
 runBot :: AppConf -> Bot -> L a -> IO a
