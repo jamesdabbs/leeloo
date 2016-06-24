@@ -1,6 +1,7 @@
 module Adapters.Slack.Types
   ( Channel(..)
   , ChannelId
+  , Credentials(..)
   , Event(..)
   , Message(..)
   , Token
@@ -36,3 +37,8 @@ data Event = MessageEvent Message
            | MessageError
            | UnknownEvent Text LBS.ByteString
            deriving Show
+
+data Credentials = Credentials
+  { appClientId     :: !Text
+  , appClientSecret :: !Text
+  } deriving (Show, Eq)

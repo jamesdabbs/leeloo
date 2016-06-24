@@ -5,18 +5,20 @@ module Adapters.Slack.Api
   , sendMessage
   , getChannels
   , getChannelMembers
+  , oauth
   ) where
 
 import Base hiding (sendMessage)
-import Logging (apiCall)
+import Logging (apiCall, pprint)
 import qualified Adapters.Slack.Types as S
 
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ByteString.Lazy.Char8 as LBSC
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as LT
 
 import           Data.Aeson
-import           Data.Aeson.Types            (Parser)
+import           Data.Aeson.Types     (Parser)
 import           Control.Lens         ((.~), (&), (^.))
 import           Data.Aeson.Lens      (_String, key)
 import           Network.Wreq         (FormParam, postWith, defaults, param, responseBody, Options, Response)
@@ -33,6 +35,9 @@ sendMessage Bot{..} channel body = do
             & param "as_user"     .~ ["false" :: Text]
             & param "icon_emoji"  .~ [botIcon]
   return ()
+
+getDirectChannel :: MonadIO m => Bot -> Text -> m (Maybe S.ChannelId)
+getDirectChannel = error "getDirectChannel"
 
 getWebsocket :: Bot -> IO Text
 getWebsocket Bot{..} = do
@@ -61,16 +66,29 @@ getChannelMembers _ _ = do
   error "FIXME: getChannelMembers"
   return []
 
+oauth :: MonadIO m => S.Credentials -> Text -> m (BotToken, BotToken)
+oauth S.Credentials{..} code = do
+  let opts = defaults
+           & param "client_id"     .~ [appClientId]
+           & param "client_secret" .~ [appClientSecret]
+           & param "code"          .~ [code]
+  let url  = "https://slack.com/api/oauth.access"
+  let form = [] :: [FormParam]
+  r <- liftIO $ postWith opts url form
+  apiCall "??" "oauth.access" r
+  let user = r ^. responseBody . key "access_token" . _String
+      bot  = r ^. responseBody . key "bot" . key "bot_access_token" . _String
+  return (user, bot)
+
 slackRequest :: MonadIO m => BotName -> BotToken -> Text -> (Options -> Options) -> m (Response LBS.ByteString)
 slackRequest name token endpoint updater = do
   let opts = defaults
            & param "token" .~ [token]
   let url  = "https://slack.com/api/" <> endpoint
   let form = [] :: [FormParam]
-  liftIO $ do
-    r <- postWith (updater opts) (T.unpack url) form
-    apiCall name endpoint r
-    return r
+  r <- liftIO $ postWith (updater opts) (T.unpack url) form
+  apiCall name endpoint r
+  return r
 
 instance FromJSON S.Message where
   parseJSON = withObject "message" $ \v -> do

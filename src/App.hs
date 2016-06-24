@@ -4,6 +4,8 @@
 module App
   ( AppConf(..)
   , AppError(..)
+  , AppUser(..)
+  , AppUserToken
   , L
   , mkConf
   , runL
@@ -17,21 +19,31 @@ import           Control.Monad.Trans.Except  (ExceptT, runExceptT)
 import           Control.Monad.Trans.Reader  (ReaderT, runReaderT)
 import           Database.Redis              (Connection, connect, defaultConnectInfo)
 import           Data.Monoid                 ((<>))
-import           Data.Text                   (Text)
+import           Data.Text                   (Text, pack)
+import           System.Environment          (getEnv)
 
 import Types
+import Adapters.Slack.Types (Credentials(..))
 import Plugin (BotM(..))
 import Bot.Registry
 import Logging (Logger, newLogger)
 
 data AppConf = AppConf
-  { bots      :: BotRegistry
-  , redisConn :: Connection
-  , redisNS   :: Text
-  , logger    :: Logger
+  { bots                :: BotRegistry
+  , redisConn           :: Connection
+  , redisNS             :: Text
+  , logger              :: Logger
+  , slackAppCredentials :: Credentials
   }
 
-data AppError = NotFound | Invalid deriving Show
+type AppUserToken = Text
+data AppUser = AppUser
+  { appUserId    :: Text
+  , appUserName  :: Text
+  , appUserToken :: AppUserToken
+  } deriving (Show, Eq)
+
+data AppError = NotFound | Invalid | Redirect Text deriving Show
 
 newtype L' m a = L'
   { unL' :: ExceptT AppError (ReaderT AppConf m) a
@@ -53,9 +65,16 @@ runL' conf m = runReaderT (runExceptT $ unL' m) conf
 runL :: AppConf -> L a -> IO (Either AppError a)
 runL = runL'
 
+env :: String -> IO Text
+env key = pack <$> getEnv key
+
+getSlackCredentials :: IO Credentials
+getSlackCredentials = Credentials <$> env "SLACK_CLIENT_ID" <*> env "SLACK_CLIENT_SECRET"
+
 mkConf :: IO AppConf
 mkConf = AppConf
            <$> newBotRegistry
            <*> connect defaultConnectInfo
            <*> pure "leeloo"
            <*> newLogger
+           <*> getSlackCredentials

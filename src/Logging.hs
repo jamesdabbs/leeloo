@@ -6,16 +6,24 @@ module Logging
   , bootBot
   , newLogger
   , pluginMatch
+  , pprint
   ) where
 
 import Base
 import Plugin (BotSpec(..))
 
-import Control.Monad.Logger (MonadLogger(..))
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
-import System.Console.ANSI
-import System.Log.FastLogger
+import           Control.Lens               ((^.))
+import           Control.Monad.Logger       (MonadLogger(..))
+import           Data.Attoparsec.Lazy       (Result(..), parse)
+import           Data.Aeson                 (json')
+import           Data.Aeson.Lens            (_Bool, key)
+import           Data.Aeson.Encode.Pretty   (encodePretty)
+import           Data.ByteString.Lazy.Char8 as LBS
+import qualified Data.Text                  as T
+import qualified Data.Text.IO               as T
+import           Network.Wreq               (Response, responseBody, responseStatus, statusCode)
+import           System.Console.ANSI
+import           System.Log.FastLogger
 
 type Logger = FastLogger
 
@@ -39,8 +47,10 @@ pluginMatch Bot{..} msg = mapM_ log
       , colorize Green name
       ]
 
-apiCall :: MonadIO m => BotName -> Text -> a -> m ()
-apiCall bot endpoint _ = blog bot [ colorize Red endpoint ]
+apiCall :: MonadIO m => BotName -> Text -> Response LBS.ByteString -> m ()
+apiCall bot endpoint resp = do
+  blog bot [ colorize Red endpoint ]
+  -- liftIO . LBS.putStrLn . pprint $ resp ^. responseBody
 
 bootBot :: MonadIO m => BotSpec m -> m ()
 bootBot BotSpec{..} = blog (botName botRecord) [ "Booting" ]
@@ -59,3 +69,8 @@ colorize color str = T.concat
   , str
   , T.pack $ setSGRCode [Reset]
   ]
+
+pprint :: LBS.ByteString -> LBS.ByteString
+pprint s = case parse json' s of
+  Done _ v -> encodePretty v
+  _        -> s

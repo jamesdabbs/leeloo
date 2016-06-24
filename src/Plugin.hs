@@ -37,7 +37,7 @@ data Example = Example
   , exampleDescription :: Text
   }
 
-data Monad m => Plugin m = Plugin
+data Plugin m = Plugin
   { pName     :: Text
   , pExamples :: [Example]
   , pCommand  :: Bool
@@ -59,7 +59,7 @@ data BotSpec m = BotSpec
   , botPlugins :: ![Plugin m]
   }
 
-data Monad m => Adapter m = Adapter
+data Adapter m = Adapter
   { bootBot        :: BotSpec m -> m ()
   , sendToRoom     :: Bot -> Room -> Text -> m ()
   , sendToUser     :: Bot -> User -> Text -> m ()

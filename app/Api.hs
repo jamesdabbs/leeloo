@@ -37,6 +37,7 @@ type API = "bots" :> GET [BotStatus]
            :> ( POST   ()
            :<|> DELETE ()
            )
+      :<|> "users" :> "callback" :> QueryParam "code" Text :> GET ()
 
 serverT :: ServerT API L
 serverT = C.botIndex
@@ -44,6 +45,7 @@ serverT = C.botIndex
      :<|> ( \_id -> C.botStart _id
                :<|> C.botStop _id
           )
+     :<|> C.oauthCallback
 
 server :: AppConf -> W.Application
 server = serve api . extend serverT
@@ -60,7 +62,9 @@ run conf l = liftIO (runL conf l) >>= \case
   Right val -> return val
 
 coerceError :: AppError -> ServantErr
-coerceError = error "coercing error"
+coerceError (Redirect url) = err303 { errHeaders = [("Location", encodeUtf8 url)] }
+coerceError  NotFound      = err404
+coerceError  Invalid       = err400
 
 startApi :: Int -> AppConf -> IO ()
 startApi port conf = do
