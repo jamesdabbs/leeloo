@@ -1,22 +1,27 @@
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE FlexibleInstances #-}
+
+-- We'll be defining a lot of ToJSON instances here
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Controller
   ( botIndex
   , botCreate
   , botStart
   , botStop
   , oauthCallback
+  , pluginIndex
   ) where
 
 import Base
 
 import Data.Aeson
-import Servant (err303, errHeaders, throwError)
 
 import App
 import Bot
-import Bots         (buildSlackBot)
+import Bots         (buildSlackBot, defaultPlugins)
 import Bot.Registry (BotStatus(..), getStatuses)
+import Plugin
 
 import qualified Adapters.Slack.Api as S
 
@@ -73,7 +78,7 @@ createUserAccount token = S.getBotInfo bot >>= saveAppUser . botToAppUser
 
 registerBot :: AppUser -> BotToken -> L Bot
 registerBot user token = do
-  bot <- S.getBotInfo $ BotInfo token ":pig:"
+  bot <- S.getBotInfo $ BotInfo token "pig"
   saveBot bot
   -- TODO: record bot owner / user
   runBot $ buildSlackBot bot
@@ -90,3 +95,16 @@ createUserToken :: AppUser -> L Text
 createUserToken AppUser{..} = do
   liftIO $ putStrLn "TODO: generate user token"
   return $ appUserId <> " (TODO: something more secure)"
+
+instance ToJSON PluginData where
+  toJSON PluginData{..} = object
+    [ "name"     .= pdName
+    , "examples" .= (object $ map examplePair pdExamples)
+    ]
+    where
+      examplePair Example{..} = exampleText .= exampleDescription
+
+pluginIndex :: L [PluginData]
+pluginIndex = return $ map toPluginData defaultPlugins
+  where
+    toPluginData p@Plugin{..} = PluginData pluginName $ pluginExamples p

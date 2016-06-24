@@ -1,53 +1,78 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 module Plugin
   ( Adapter(..)
   , BotM(..)
   , BotSpec(..)
   , Example(..)
+  , H
   , Handler
   , HandlerCtx(..)
-  , Plugin
-  , mkPlugin
-  , pluginApplies
-  , pluginName
-  , runPlugin
+  , Plugin(..)
+  , PluginData(..)
+  , botHandlers
+  , mkHandler
+  , handlerApplies
+  , handlerExamples
+  , handlerName
+  , pluginExamples
+  , runHandler
   ) where
 
 import Base
 
-import           Control.Monad.Reader        (ReaderT, runReaderT)
+import           Control.Monad.Reader        (ReaderT, runReaderT, lift)
 import           Data.Attoparsec.Text        (Parser, parseOnly)
 import           Data.ByteString             (ByteString)
+import           Data.List                   (find)
 import           Data.Maybe                  (isNothing)
-import qualified Data.Text                   as T
 import qualified Database.Redis              as Redis (Connection)
 
 
 data HandlerCtx m = HandlerCtx
-  { handlerBot       :: BotSpec m
-  , handlerMessage   :: Message
-  , handlerNamespace :: ByteString
-  , handlerRedisConn :: Redis.Connection
+  { handlerBot        :: BotSpec m
+  , handlerMessage    :: Message
+  , handlerPluginName :: ByteString
+  , handlerRedisConn  :: Redis.Connection
   }
-type Handler m a = ReaderT (HandlerCtx m) m a
+type H m a = ReaderT (HandlerCtx m) m a
+
+instance BotM m => BotM (ReaderT (HandlerCtx m) m) where
+  redisPool = lift redisPool
+  redisNamespace = do
+    base        <- lift redisNamespace
+    plugin      <- asks handlerPluginName
+    BotSpec{..} <- asks handlerBot
+    return $ base <> ":bot:" <> encodeUtf8 (botId botRecord) <> ":plugin:" <> plugin
 
 data Example = Example
-  { exampleTexts       :: [Text]
+  { exampleText        :: Text
   , exampleDescription :: Text
-  }
+  } deriving Show
 
 data Plugin m = Plugin
-  { pName     :: Text
-  , pExamples :: [Example]
-  , pCommand  :: Bool
+  { pluginName      :: Text
+  , pluginHandlers  :: [Handler m]
+  }
+
+data PluginData = PluginData
+  { pdName     :: Text
+  , pdExamples :: [Example]
+  }
+
+data Handler m = Handler
+  { handlerName     :: Text
+  , handlerExamples :: [Example]
+  , handlerCommand  :: Bool
   -- The odd version of Bool is so we can have a consistent
   -- monadic interface to both these helpers
   -- We always `return ()` if the command check fails
   -- These aren't exposed, so it's not that bad, but ...
   -- TODO: make this more intuitive
-  , pTest     :: BotSpec m -> Message -> Maybe ()
-  , pRun      :: BotSpec m -> Message -> m ()
+  , handlerTest     :: BotSpec m -> Message -> Maybe ()
+  , handlerRun      :: BotSpec m -> Message -> m ()
   }
 
 -- Idea:
@@ -68,9 +93,6 @@ data Adapter m = Adapter
   , getRoomMembers :: Bot -> Room -> m [User]
   }
 
-class MonadIO m => BotM m where
-  redisPool :: m Redis.Connection
-
 checkParser :: Parser a -> BotSpec m -> Message -> Maybe ()
 checkParser parser _ Message{..} =
   case parseOnly parser messageText of
@@ -83,41 +105,37 @@ runParser parser handler bot msg@Message{..} =
     Right r -> handler bot msg r
     Left  _ -> return ()
 
-pluginApplies :: Monad m => Plugin m -> BotSpec m -> Message -> Bool
-pluginApplies p b m = isNothing $ pTest p b m
+handlerApplies :: Monad m => Handler m -> BotSpec m -> Message -> Bool
+handlerApplies p b m = isNothing $ handlerTest p b m
 
-pluginName :: Monad m => Plugin m -> Text
-pluginName = pName
+runHandler :: Monad m => Handler m -> BotSpec m -> Message -> m ()
+runHandler = handlerRun
 
-runPlugin :: Monad m => Plugin m -> BotSpec m -> Message -> m ()
-runPlugin = pRun
-
-mkPlugin :: BotM m
-         => Text
-         -> Bool
-         -> Parser a
-         -> [Example]
-         -> (a -> Handler m ())
-         -> Plugin m
-mkPlugin name commandOnly parser examples handler = verifyPlugin Plugin
-  { pName     = name
-  , pExamples = examples
-  , pCommand  = commandOnly
-  , pTest     = withCommand $ checkParser parser
-  , pRun      = withCommand . runParser parser $ runHandler handler
+mkHandler :: BotM m
+          => Text
+          -> Bool
+          -> Parser a
+          -> [Example]
+          -> (a -> H m ())
+          -> Handler m
+mkHandler name commandOnly parser examples handler = Handler
+  { handlerName     = name
+  , handlerExamples = map verify examples
+  , handlerCommand  = commandOnly
+  , handlerTest     = withCommand $ checkParser parser
+  , handlerRun      = withCommand . runParser parser $ run handler
   }
   where
-    runHandler :: BotM m => (a -> Handler m ()) -> BotSpec m -> Message -> a -> m ()
-    runHandler h b msg a = do
+    run :: BotM m => (a -> H m ()) -> BotSpec m -> Message -> a -> m ()
+    run h b msg a = do
       conn <- redisPool
       let
         Bot{..} = botRecord b
-        prefix  = T.takeWhile (/= '.') name
         ctx = HandlerCtx
-          { handlerBot       = b
-          , handlerMessage   = msg
-          , handlerNamespace = encodeUtf8 $ "leeloo:" <> botId <> ":" <> prefix
-          , handlerRedisConn = conn
+          { handlerBot        = b
+          , handlerMessage    = msg
+          , handlerPluginName = encodeUtf8 $ pluginNamespace b name
+          , handlerRedisConn  = conn
           }
       runReaderT (h a) ctx
 
@@ -129,5 +147,22 @@ mkPlugin name commandOnly parser examples handler = verifyPlugin Plugin
           then return ()
           else f b m
 
-verifyPlugin :: Plugin m -> Plugin m
-verifyPlugin = id -- TODO: check that all examples do successfully parse
+    -- TODO: check that each example does match the given parser (what about commands, users, room, &c)
+    verify = id
+
+botHandlers :: BotSpec m -> [Handler m]
+botHandlers bot = concatMap pluginHandlers $ botPlugins bot
+
+-- TODO: plugins should probably just hold on to their namespace. How should
+--   we enforce consistency?
+pluginNamespace :: BotSpec m -> Text -> Text
+pluginNamespace BotSpec{..} handler =
+  case find container botPlugins of
+    Just plugin -> pluginName plugin
+    -- This handler isn't in the bots' installed plugins
+    Nothing -> "handler:" <> handler
+  where
+    container Plugin{..} = any (\h -> handlerName h == handler) pluginHandlers
+
+pluginExamples :: Plugin m -> [Example]
+pluginExamples = concatMap handlerExamples . pluginHandlers

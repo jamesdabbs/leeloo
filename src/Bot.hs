@@ -6,6 +6,7 @@ module Bot
   , getBot
   , getStatuses
   , newBotRegistry
+  , redis
   , runBot
   , saveAppUser
   , saveBot
@@ -59,23 +60,25 @@ instance FromJSON AppUser where
     appUserToken <- v .: "token"
     return AppUser{..}
 
-redis :: RedisNS R.Redis (Either R.Reply) a -> L (Either R.Reply a)
-redis c = do
-  conn <- asks redisConn
-  liftIO $ runRedisNS conn "leeloo" c
+redis :: (MonadError AppError m, BotM m) => RedisNS R.Redis (Either R.Reply) a -> m a
+redis q = do
+  conn <- redisPool
+  ns   <- redisNamespace
+  res  <- liftIO $ runRedisNS conn ns q
+  case res of
+    Left  _ -> throwError RedisError
+    Right r -> return r
 
 savedBots :: L [Bot]
 savedBots = do
-  eids <- redis $ R.smembers "bots"
-  case eids of
-    Left _ -> return []
-    Right ids -> mapM (getBot . decodeUtf8) ids -- TODO: mget?
+  ids <- redis $ R.smembers "bots"
+  mapM (getBot . decodeUtf8) ids -- TODO: mget?
 
 saveBot :: Bot -> L ()
-saveBot b = void $ save "bots" botId b
+saveBot = void . save "bots" botId
 
 saveAppUser :: AppUser -> L AppUser
-saveAppUser u = save "users" appUserId u
+saveAppUser = save "users" appUserId
 
 botToAppUser :: Bot -> AppUser
 botToAppUser Bot{..} =
@@ -87,22 +90,21 @@ botToAppUser Bot{..} =
 
 save :: ToJSON a => BS.ByteString -> (a -> Text) -> a -> L a
 save kind key obj = do
-  let id = encodeUtf8 $ key obj
-  redis $ do
-    R.set (kind <> ":" <> id) (LBS.toStrict $ encode obj)
-    R.sadd kind [id]
+  let _id = encodeUtf8 $ key obj
+  _ <- redis $ do
+    R.set (kind <> ":" <> _id) (LBS.toStrict $ encode obj)
+    R.sadd kind [_id]
   return obj
 
 getBot :: BotId -> L Bot
 getBot _id = do
-  ejson <- redis $ R.get (encodeUtf8 $ "bots:" <> _id)
-  case ejson of
-    Right (Just json) -> case decode $ LBS.fromStrict json of
+  mjson <- redis $ R.get (encodeUtf8 $ "bots:" <> _id)
+  case mjson of
+    Just j -> case decode $ LBS.fromStrict j of
       Just bot -> return bot
       -- TODO: MonadError
       Nothing  -> error "getBot: failed to decode saved bot"
-    Right _    -> error "getBot: id not found"
-    Left _     -> error "getBot: failed to search"
+    Nothing -> error "getBot: failed to find"
 
 -- FIXME: this needs to do something if this bot spec is already running (reboot it?), not boot up two copies
 runBot :: MonadIO m => BotSpec m -> m ()
@@ -112,15 +114,15 @@ runBot spec@BotSpec{..} = do
 
 botDirectives :: MonadIO m => BotSpec m -> Message -> m ()
 botDirectives b msg = do
-  let applicable = L.filter (\p -> pluginApplies p b msg) (botPlugins b)
+  let applicable = L.filter (\p -> handlerApplies p b msg) (botHandlers b)
 
   -- TODO:
   -- * ensure that plugins run in isolation and crash safely
   -- * enforce only one match?
   unless (null applicable) $ do
-    let names = L.map pluginName applicable
-    Log.pluginMatch (botRecord b) msg names
-    forM_ applicable $ \p -> runPlugin p b msg
+    let names = L.map handlerName applicable
+    Log.handlerMatch (botRecord b) msg names
+    forM_ applicable $ \p -> runHandler p b msg
 
 buildBot :: Adapter m -> [Plugin m] -> Bot -> BotSpec m
 buildBot botAdapter botPlugins botRecord = BotSpec{..}

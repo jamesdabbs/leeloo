@@ -34,6 +34,8 @@ library
                      , Logging
                      , Plugin
                      , Plugins.Base
+                     , Plugins.Echo
+                     , Plugins.Help
                      , Plugins.Panic
                      , Plugins.Score
                      , Types

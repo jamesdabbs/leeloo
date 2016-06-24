@@ -8,14 +8,12 @@ module Adapters.Slack.Api
   , oauth
   ) where
 
-import Base hiding (sendMessage)
-import Logging (apiCall, pprint)
+import Base
+import Logging (apiCall)
 import qualified Adapters.Slack.Types as S
 
 import qualified Data.ByteString.Lazy as LBS
-import qualified Data.ByteString.Lazy.Char8 as LBSC
 import qualified Data.Text as T
-import qualified Data.Text.Lazy as LT
 
 import           Data.Aeson
 import           Data.Aeson.Types     (Parser)
@@ -35,9 +33,6 @@ sendMessage Bot{..} channel body = do
             & param "as_user"     .~ ["false" :: Text]
             & param "icon_emoji"  .~ [botIcon]
   return ()
-
-getDirectChannel :: MonadIO m => Bot -> Text -> m (Maybe S.ChannelId)
-getDirectChannel = error "getDirectChannel"
 
 getWebsocket :: Bot -> IO Text
 getWebsocket Bot{..} = do

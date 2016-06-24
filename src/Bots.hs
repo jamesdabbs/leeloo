@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Bots
  ( buildSlackBot
+ , defaultPlugins
  , mkConf
  , startCli
  , startSavedBots
@@ -11,9 +12,10 @@ import App
 import Bot
 import Plugin
 
-import Plugins.Base
-import qualified Plugins.Panic as P
-import qualified Plugins.Score as P
+import Plugins.Echo
+import Plugins.Help
+import Plugins.Panic
+import Plugins.Score
 
 import qualified Adapters.CLI as CLI
 import qualified Adapters.Slack as Slack
@@ -33,7 +35,8 @@ startCli conf = do
   either (error . show) return result
 
 defaultPlugins :: [Plugin L]
-defaultPlugins = [echo, help, P.check, P.record, P.export, P.score, P.scoreUp, P.scoreDown]
+defaultPlugins = [help, echo, score, panic]
+
 
 buildSlackBot :: Bot -> BotSpec L
 buildSlackBot = buildBot Slack.adapter defaultPlugins

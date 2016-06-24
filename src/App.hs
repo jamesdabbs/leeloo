@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 module App
   ( AppConf(..)
@@ -14,17 +15,15 @@ module App
 import           Control.Monad.Except        (MonadError)
 import           Control.Monad.IO.Class      (MonadIO, liftIO)
 import           Control.Monad.Logger        (MonadLogger(..), toLogStr)
-import           Control.Monad.Reader        (MonadReader(..), asks, local)
+import           Control.Monad.Reader        (MonadReader(..), asks)
 import           Control.Monad.Trans.Except  (ExceptT, runExceptT)
 import           Control.Monad.Trans.Reader  (ReaderT, runReaderT)
 import           Database.Redis              (Connection, connect, defaultConnectInfo)
-import           Data.Monoid                 ((<>))
 import           Data.Text                   (Text, pack)
 import           System.Environment          (getEnv)
 
 import Types
 import Adapters.Slack.Types (Credentials(..))
-import Plugin (BotM(..))
 import Bot.Registry
 import Logging (Logger, newLogger)
 
@@ -43,7 +42,11 @@ data AppUser = AppUser
   , appUserToken :: AppUserToken
   } deriving (Show, Eq)
 
-data AppError = NotFound | Invalid | Redirect Text deriving Show
+data AppError = NotFound
+              | Invalid
+              | Redirect Text
+              | RedisError
+              deriving Show
 
 newtype L' m a = L'
   { unL' :: ExceptT AppError (ReaderT AppConf m) a
@@ -57,7 +60,8 @@ instance MonadLogger L where
     liftIO . l $ toLogStr msg
 
 instance BotM L where
-  redisPool = asks redisConn
+  redisPool      = asks redisConn
+  redisNamespace = return "leeloo"
 
 runL' :: Monad m => AppConf -> L' m a -> m (Either AppError a)
 runL' conf m = runReaderT (runExceptT $ unL' m) conf
@@ -69,12 +73,14 @@ env :: String -> IO Text
 env key = pack <$> getEnv key
 
 getSlackCredentials :: IO Credentials
-getSlackCredentials = Credentials <$> env "SLACK_CLIENT_ID" <*> env "SLACK_CLIENT_SECRET"
+getSlackCredentials = Credentials
+  <$> env "SLACK_CLIENT_ID"
+  <*> env "SLACK_CLIENT_SECRET"
 
 mkConf :: IO AppConf
 mkConf = AppConf
-           <$> newBotRegistry
-           <*> connect defaultConnectInfo
-           <*> pure "leeloo"
-           <*> newLogger
-           <*> getSlackCredentials
+  <$> newBotRegistry
+  <*> connect defaultConnectInfo
+  <*> pure "leeloo"
+  <*> newLogger
+  <*> getSlackCredentials

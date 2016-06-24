@@ -5,7 +5,7 @@ module Logging
   , apiCall
   , bootBot
   , newLogger
-  , pluginMatch
+  , handlerMatch
   , pprint
   ) where
 
@@ -36,8 +36,8 @@ newLogger = do
   (l, _) <- newFastLogger $ LogStderr defaultBufSize
   return l
 
-pluginMatch :: MonadIO m => Bot -> Message -> [Text] -> m ()
-pluginMatch Bot{..} msg = mapM_ log
+handlerMatch :: MonadIO m => Bot -> Message -> [Text] -> m ()
+handlerMatch Bot{..} msg = mapM_ log
   where
     log name = blog botName
       [ colorize Magenta (userName . messageUser $ msg)

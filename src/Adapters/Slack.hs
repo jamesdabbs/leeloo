@@ -10,8 +10,7 @@ import Base
 import qualified Adapters.Slack.Api as S
 import qualified Adapters.Slack.Types as S
 
-import           Control.Concurrent   (forkIO, forkFinally)
-import           Control.Exception    (IOException)
+import           Control.Concurrent   (forkFinally)
 import           Data.Aeson           (eitherDecode)
 import           Data.Attoparsec.Text
 import qualified Data.ByteString.Lazy as LBS
@@ -100,6 +99,8 @@ commandParser = do
   _ <- string "<@"
   userId <- takeWhile $ \c -> c /= '>'
   _ <- char '>'
+  whitespace
+  _ <- optional ":"
   whitespace
   msg <- takeWhile $ const True
   return (userId, msg)

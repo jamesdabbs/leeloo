@@ -1,32 +1,40 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Plugins.Score
   ( score
-  , scoreUp
-  , scoreDown
   ) where
 
-import Base
-import Plugin
+-- import Base
+-- import App (AppError)
+-- import Bot (redis)
 import Plugins.Base
 
-import qualified Data.Text    as T
-import qualified Data.Text.IO as T
-import           Database.Redis.Namespace
+import qualified Data.Text                as T
+import qualified Database.Redis.Namespace as R
 
 
-score, scoreUp, scoreDown :: BotM m => Plugin m
+score :: (MonadError AppError m, BotM m) => Plugin m
+score = Plugin "score" [scoreUp, scoreDown, scoreShow]
 
-score = mkPlugin "points.show" False ("score " *> word) [] $ \word -> do
-  n <- redis $ incrby (encodeUtf8 word) 0
-  explain word n
 
-scoreUp = mkPlugin "points.up" False (word <* "++") [] $ \word -> do
-  n <- redis $ incrby (encodeUtf8 word) 1
-  explain word n
+scoreShow, scoreUp, scoreDown :: (MonadError AppError m, BotM m) => Handler m
 
-scoreDown = mkPlugin "points.down" False (word <* "--") [] $ \word -> do
-  n <- redis $ incrby (encodeUtf8 word) (-1)
-  explain word n
+scoreShow = mkHandler "Show score" False ("score " *> word)
+  [ Example "score leeloo" "Show the score for leeloo"]
+  $ \term -> delta term 0
 
-explain :: Monad m => Text -> Integer -> Handler m ()
-explain word n = reply $ word <> " has " <> T.pack (show n) <> " points"
+scoreUp = mkHandler "Add score" False (word <* "++")
+  [ Example "leeloo++" "Give leeloo 1 point"]
+  $ \term -> delta term 1
+
+scoreDown = mkHandler "Lower score" False (word <* "--")
+  [ Example "leeloo--" "Be a monster"]
+  $ \term -> delta term (-1)
+
+
+delta :: (MonadError AppError m, BotM m) => Text -> Integer -> H m ()
+delta term dn = redis (R.incrby term' dn) >>= explain term
+  where term' = encodeUtf8 term
+
+explain :: Monad m => Text -> Integer -> H m ()
+explain term n = reply $ term <> " has " <> T.pack (show n) <> " points"

@@ -6,6 +6,7 @@ module Base
 import Control.Applicative          as Base (optional, many)
 import Control.Concurrent           as Base (ThreadId)
 import Control.Monad                as Base (MonadPlus, forever, forM_, liftM2, mzero, unless, void, when, (>=>))
+import Control.Monad.Error          as Base (MonadError, throwError)
 import Control.Monad.Logger         as Base (MonadLogger, logDebug, logError, logInfo, logWarn, toLogStr)
 import Control.Monad.Reader         as Base (MonadReader, asks, ask)
 import Control.Monad.IO.Class       as Base (MonadIO)

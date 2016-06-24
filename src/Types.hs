@@ -1,5 +1,6 @@
 module Types
   ( Bot(..)
+  , BotM(..)
   , BotId
   , BotInfo(..)
   , BotName
@@ -12,7 +13,10 @@ module Types
   , User(..)
   ) where
 
-import Data.Text (Text)
+import           Control.Monad.IO.Class (MonadIO)
+import           Data.Text              (Text)
+import           Data.ByteString        (ByteString)
+import qualified Database.Redis         as Redis (Connection)
 
 type BotId = Text
 type RoomId = Text
@@ -53,3 +57,7 @@ data BotInfo = BotInfo
   { botInfoToken :: BotToken
   , botInfoIcon  :: Text
   }
+
+class MonadIO m => BotM m where
+  redisPool      :: m Redis.Connection
+  redisNamespace :: m ByteString

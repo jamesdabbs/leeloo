@@ -20,6 +20,7 @@ import App
 import Bot.Registry (BotStatus)
 import Bots (startSavedBots)
 import qualified Controller as C
+import Plugin
 
 import qualified Data.Text                as T
 import qualified Data.Text.IO             as T
@@ -37,6 +38,7 @@ type API = "bots" :> GET [BotStatus]
            :> ( POST   ()
            :<|> DELETE ()
            )
+      :<|> "plugins" :> GET [PluginData]
       :<|> "users" :> "callback" :> QueryParam "code" Text :> GET ()
 
 serverT :: ServerT API L
@@ -45,6 +47,7 @@ serverT = C.botIndex
      :<|> ( \_id -> C.botStart _id
                :<|> C.botStop _id
           )
+     :<|> C.pluginIndex
      :<|> C.oauthCallback
 
 server :: AppConf -> W.Application
