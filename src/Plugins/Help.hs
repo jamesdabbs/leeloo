@@ -19,5 +19,6 @@ helpH = mkHandler "help" True (string "help")
   ] $ \_ -> do
     bot <- getBot
     let examples = concatMap handlerExamples $ botHandlers bot
-        msg = T.concat $ concatMap (\Example{..} -> [exampleText, " => ", exampleDescription, "\n"]) examples
-    reply msg
+        colWidth = maximum $ map (\Example{..} -> T.length exampleText) examples
+        msg = T.concat $ concatMap (\Example{..} -> [T.justifyLeft colWidth ' ' exampleText, " => ", exampleDescription, "\n"]) examples
+    reply $ "```\n" <> msg <> "```"
