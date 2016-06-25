@@ -1,13 +1,13 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Bot
-  ( botDirectives
+  ( allSavedBots
+  , botDirectives
   , botToAppUser
   , buildBot
-  , getBot
+  , getBots
   , redis
   , saveAppUser
   , saveBot
-  , savedBots
   ) where
 
 import Base
@@ -65,10 +65,8 @@ redis q = do
     Left  _ -> throwError RedisError
     Right r -> return r
 
-savedBots :: L [Bot]
-savedBots = do
-  ids <- redis $ R.smembers "bots"
-  mapM (getBot . decodeUtf8) ids -- TODO: mget?
+allSavedBots :: L [Bot]
+allSavedBots = redis (R.smembers "bots") >>= getBots
 
 saveBot :: Bot -> L ()
 saveBot = void . save "bots" botId
@@ -92,15 +90,18 @@ save kind key obj = do
     R.sadd kind [_id]
   return obj
 
-getBot :: BotId -> L Bot
-getBot _id = do
-  mjson <- redis $ R.get (encodeUtf8 $ "bots:" <> _id)
-  case mjson of
-    Just j -> case decode $ LBS.fromStrict j of
-      Just bot -> return bot
-      -- TODO: MonadError
-      Nothing  -> error "getBot: failed to decode saved bot"
-    Nothing -> error "getBot: failed to find"
+getBots :: [BS.ByteString] -> L [Bot]
+getBots _ids = do
+  mjsons <- redis . R.mget $ map encodeKey _ids
+  mapM decodeBot mjsons
+  where
+    encodeKey _id = "bots:" <> _id
+    decodeBot mjson = case mjson of
+      Nothing -> throwError NotFound
+      Just  j -> case decode $ LBS.fromStrict j of
+        Just bot -> return bot
+        Nothing  -> throwError NotFound
+
 
 botDirectives :: (MonadBaseControl IO m, MonadIO m) => BotSpec m -> Message -> m ()
 botDirectives b msg = do

@@ -64,6 +64,7 @@ library
                      , text
                      , transformers
                      , transformers-base
+                     , uuid
                      , websockets
                      , wreq
                      , wuss

@@ -6,7 +6,6 @@
 
 module Controller
   ( botIndex
-  , botCreate
   , botStart
   , botStop
   , oauthCallback
@@ -18,9 +17,8 @@ import Base
 import Data.Aeson
 
 import App
-import Bot
 import Bot.Supervisor (WorkerState(..), WorkerStatus(..))
-import Bots (buildSlackBot, startBot, stopBot, defaultPlugins, getStatuses)
+import Bots
 import Plugin
 
 import qualified Adapters.Slack.Api as S
@@ -56,23 +54,26 @@ instance ToJSON BotStatus where
     , "status" .= bsStatus
     ]
 
-botIndex :: L [BotStatus]
-botIndex = savedBots >>= getStatuses
+withUser :: Maybe AuthToken -> (AppUser -> L a) -> L a
+withUser mtoken h = case mtoken of
+  Nothing     -> throwError NotAuthenticated
+  Just token  -> userFromToken token >>= \case
+    Nothing   -> throwError NotAuthenticated
+    Just user -> h user
 
-botCreate :: BotInfo -> L ()
-botCreate info = do
-  record <- S.getBotInfo info
-  saveBot record
-  startBot $ buildSlackBot record
+botIndex :: Maybe AuthToken -> L [BotStatus]
+botIndex tok = withUser tok $ \user ->
+  savedBots user >>= getStatuses
 
--- FIXME: need to enforce ownership of bot!
-botStart :: BotId -> L ()
-botStart _id = do
-  record <- getBot _id
-  startBot $ buildSlackBot record
+botStart :: Maybe AuthToken -> BotId -> L ()
+botStart tok _id = withUser tok $ \user -> do
+  bot <- getBot user _id
+  startBot $ buildSlackBot bot
 
-botStop :: BotId -> L ()
-botStop = stopBot
+botStop :: Maybe AuthToken -> BotId -> L ()
+botStop tok _id = withUser tok $ \user -> do
+  bot <- getBot user _id
+  stopBot $ botId bot
 
 oauthCallback :: Maybe Text -> L ()
 oauthCallback mcode = case mcode of
@@ -80,39 +81,15 @@ oauthCallback mcode = case mcode of
   Just code -> do
     creds <- asks slackAppCredentials
     (u,b) <- S.oauth creds code
-    user  <- createUserAccount u
-    bot   <- registerBot user b
+
+    (user, token) <- registerUser u
+    bot <- registerBot user b
     welcomeUser bot user
 
-    token <- createUserToken user
-    redirectTo $ "/todo#token=" <> token
+    redirectTo $ "/todo#token=" <> decodeUtf8 token
 
 redirectTo :: Text -> L () -- TODO: I don't love that this is an "error" an not well-reflected in the types
 redirectTo url = throwError $ Redirect url
-
-createUserAccount :: AppUserToken -> L AppUser
-createUserAccount token = S.getBotInfo bot >>= saveAppUser . botToAppUser
-  where bot = BotInfo token ""
-
-registerBot :: AppUser -> BotToken -> L Bot
-registerBot user token = do
-  bot <- S.getBotInfo $ BotInfo token "pig"
-  saveBot bot
-  -- TODO: record bot owner / user
-  startBot $ buildSlackBot bot
-  return bot
-
-welcomeUser :: Bot -> AppUser -> L ()
-welcomeUser bot AppUser{..} = do
-  S.sendMessage bot channel $ "Hi, " <> appUserName <> ". Thanks for the invite!"
-  S.sendMessage bot channel $ "To get started and see what I can do, try saying `@" <> botName bot <> ": help` in a channel"
-  where
-    channel = "@" <> appUserName
-
-createUserToken :: AppUser -> L Text
-createUserToken AppUser{..} = do
-  liftIO $ putStrLn "TODO: generate user token"
-  return $ appUserId <> " (TODO: something more secure)"
 
 instance ToJSON PluginData where
   toJSON PluginData{..} = object
@@ -122,7 +99,8 @@ instance ToJSON PluginData where
     where
       examplePair Example{..} = exampleText .= exampleDescription
 
-pluginIndex :: L [PluginData]
-pluginIndex = return $ map toPluginData defaultPlugins
+pluginIndex :: Maybe AuthToken -> L [PluginData]
+pluginIndex tok = withUser tok $ \_ ->
+  return $ map toPluginData defaultPlugins
   where
     toPluginData p@Plugin{..} = PluginData pluginName $ pluginExamples p

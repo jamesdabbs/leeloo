@@ -31,23 +31,31 @@ type GET    a = Get    '[JSON] a
 type POST   a = Post   '[JSON] a
 type DELETE a = Delete '[JSON] a
 
-type API = "bots" :> GET [BotStatus]
-      :<|> "bots" :> ReqBody '[JSON] BotInfo :> POST ()
-      :<|> "bots" :> Capture "bot_id" BotId
-           :> ( POST   ()
-           :<|> DELETE ()
-           )
-      :<|> "plugins" :> GET [PluginData]
+instance FromHttpApiData AuthToken where
+  parseHeader = Right -- TODO: check for and strip off "token " prefix
+
+type PrivateAPI = Header "Authorization" AuthToken
+                :> ( "bots" :> GET [BotStatus]
+                :<|> "bots" :> Capture "bot_id" BotId
+                     :> ( POST   ()
+                     :<|> DELETE ()
+                     )
+                :<|> "plugins" :> GET [PluginData]
+                )
+
+pServerT :: ServerT PrivateAPI L
+pServerT t = C.botIndex t
+        :<|> ( \_id -> C.botStart t _id
+                  :<|> C.botStop  t _id
+             )
+        :<|> C.pluginIndex t
+
+
+type API = PrivateAPI
       :<|> "users" :> "callback" :> QueryParam "code" Text :> GET ()
 
 serverT :: ServerT API L
-serverT = C.botIndex
-     :<|> C.botCreate
-     :<|> ( \_id -> C.botStart _id
-               :<|> C.botStop _id
-          )
-     :<|> C.pluginIndex
-     :<|> C.oauthCallback
+serverT = pServerT :<|> C.oauthCallback
 
 server :: AppConf -> W.Application
 server = serve api . extend serverT
@@ -64,9 +72,10 @@ run conf l = liftIO (runL conf l) >>= \case
   Right val -> return val
 
 coerceError :: AppError -> ServantErr
-coerceError (Redirect url) = err303 { errHeaders = [("Location", encodeUtf8 url)] }
-coerceError  NotFound      = err404
-coerceError  Invalid       = err400
+coerceError (Redirect url)   = err303 { errHeaders = [("Location", encodeUtf8 url)] }
+coerceError NotFound         = err404
+coerceError Invalid          = err400
+coerceError NotAuthenticated = err401
 
 startApi :: Int -> AppConf -> IO ()
 startApi port conf = do

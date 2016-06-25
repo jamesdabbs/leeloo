@@ -12,6 +12,7 @@ module App
   , AppError(..)
   , AppUser(..)
   , AppUserToken
+  , AuthToken
   , BotStatus(..)
   , L
   , mkConf
@@ -29,6 +30,7 @@ import           Control.Monad.Trans.Control
 import           Control.Monad.Trans.Except  (ExceptT, runExceptT)
 import           Control.Monad.Trans.Reader  (ReaderT, runReaderT)
 import           Database.Redis              (Connection, connect, defaultConnectInfo)
+import           Data.ByteString             (ByteString)
 import           Data.Text                   (Text, pack)
 import           System.Environment          (getEnv)
 
@@ -56,7 +58,10 @@ data AppError = NotFound
               | Invalid
               | Redirect Text
               | RedisError
+              | NotAuthenticated
               deriving Show
+
+type AuthToken = ByteString
 
 data BotStatus = BotStatus
   { bsBot    :: !Bot
