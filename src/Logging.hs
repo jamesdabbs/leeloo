@@ -3,7 +3,6 @@
 module Logging
   ( Logger
   , apiCall
-  , bootBot
   , blog
   , bracket
   , colorize
@@ -56,9 +55,6 @@ apiCall bot endpoint resp = do
   blog bot [ colorize Red endpoint ]
   -- liftIO . LBS.putStrLn . pprint $ resp ^. responseBody
 
-bootBot :: MonadIO m => BotSpec m -> m ()
-bootBot BotSpec{..} = blog (botName botRecord) [ "Booting" ]
-
 blog :: MonadIO m => BotName -> [Text] -> m ()
 blog bot msg = liftIO . T.putStrLn . T.concat $
   [ bracket Green bot
@@ -66,9 +62,9 @@ blog bot msg = liftIO . T.putStrLn . T.concat $
   , T.concat msg
   ]
 
-worker :: MonadIO m => Text -> m ()
-worker msg = liftIO . T.putStrLn . T.concat $
-  [ bracket Blue "supervisor"
+worker :: MonadIO m => Text -> Text -> m ()
+worker name msg = liftIO . T.putStrLn . T.concat $
+  [ bracket Blue $ "supervisor:" <> name
   , " "
   , msg
   ]

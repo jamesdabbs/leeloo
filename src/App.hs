@@ -7,6 +7,7 @@ module App
   , AppError(..)
   , AppUser(..)
   , AppUserToken
+  , BotStatus(..)
   , L
   , mkConf
   , runL
@@ -25,7 +26,7 @@ import           System.Environment          (getEnv)
 
 import Types
 import Adapters.Slack.Types (Credentials(..))
-import Bot.Supervisor       (Supervisor, newSupervisor)
+import Bot.Supervisor       (Supervisor, WorkerStatus, newSupervisor)
 import Logging              (Logger, newLogger)
 
 data AppConf = AppConf
@@ -48,6 +49,11 @@ data AppError = NotFound
               | Redirect Text
               | RedisError
               deriving Show
+
+data BotStatus = BotStatus
+  { bsBot    :: !Bot
+  , bsStatus :: !(Maybe WorkerStatus)
+  }
 
 newtype L' m a = L'
   { unL' :: ExceptT AppError (ReaderT AppConf m) a

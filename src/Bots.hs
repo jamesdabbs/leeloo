@@ -13,7 +13,7 @@ module Bots
 import Base
 import App
 import Bot
-import Bot.Supervisor (halt, monitor, status)
+import Bot.Supervisor (WorkerStatus(..), halt, monitor, status)
 import qualified Logging as Log
 import Plugin
 
@@ -51,15 +51,13 @@ buildSlackBot :: Bot -> BotSpec L
 buildSlackBot = buildBot Slack.adapter defaultPlugins
 
 startSavedBots :: L ()
-startSavedBots = do
-  bots <- savedBots
-  mapM_ (bootBot Slack.adapter . buildSlackBot) bots
+startSavedBots = savedBots >>= mapM_ (startBot . buildSlackBot)
 
 startBot :: BotSpec L -> L ()
 startBot spec@BotSpec{..} = do
-  Log.bootBot spec
+  let Bot{..} = botRecord
   conf <- ask
-  liftIO $ monitor (bots conf) (botId botRecord) (runL conf $ bootBot botAdapter spec)
+  liftIO $ monitor (bots conf) botName botId (runL conf $ bootBot botAdapter spec)
 
 stopBot :: BotId -> L ()
 stopBot _id = do
@@ -69,10 +67,4 @@ stopBot _id = do
 getStatuses :: [Bot] -> L [BotStatus]
 getStatuses bs = do
   stats <- supervisor >>= liftIO . status
-  return $ map (buildStatus stats) bs
-  where
-    buildStatus :: M.Map BotId (Maybe ThreadId) -> Bot -> BotStatus
-    buildStatus map bot = BotStatus
-      { botSpec     = bot
-      , botThreadId = join $ M.lookup (botId bot) map
-      }
+  return $ map (\b@Bot{..} -> BotStatus b $ M.lookup botId stats) bs

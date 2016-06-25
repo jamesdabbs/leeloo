@@ -19,10 +19,13 @@ import Data.Aeson
 
 import App
 import Bot
-import Bots   (buildSlackBot, startBot, stopBot, defaultPlugins, getStatuses)
+import Bot.Supervisor (WorkerState(..), WorkerStatus(..))
+import Bots (buildSlackBot, startBot, stopBot, defaultPlugins, getStatuses)
 import Plugin
 
 import qualified Adapters.Slack.Api as S
+
+import qualified Data.Text as T
 
 instance FromJSON BotInfo where
   parseJSON = withObject "bot_info" $ \v -> do
@@ -30,13 +33,28 @@ instance FromJSON BotInfo where
     botInfoIcon  <- v .: "icon"
     return BotInfo{..}
 
+instance ToJSON ThreadId where
+  toJSON t = Number . read . drop 9 $ show t
+
+instance ToJSON WorkerState where
+  toJSON WorkerRunning = "running"
+  toJSON WorkerCrashed = "crashed"
+  toJSON WorkerDone    = "done"
+
+instance ToJSON WorkerStatus where
+  toJSON WorkerStatus{..} = object
+    [ "thread" .= wsThread
+    , "error"  .= case wsError of
+        Just err -> Just $ show err
+        Nothing  -> Nothing
+    , "state"  .= wsState
+    ]
+
 instance ToJSON BotStatus where
   toJSON BotStatus{..} = object
-    [ "bot"    .= botSpec
-    , "thread" .= thread
+    [ "bot"    .= bsBot
+    , "status" .= bsStatus
     ]
-    where
-      thread = drop 9 $ show botThreadId
 
 botIndex :: L [BotStatus]
 botIndex = savedBots >>= getStatuses
