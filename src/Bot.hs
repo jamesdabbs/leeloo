@@ -15,6 +15,7 @@ import App
 import Plugin
 import qualified Logging as Log
 
+import           Control.Exception.Lifted (try)
 import           Data.Aeson
 import qualified Data.ByteString          as BS
 import qualified Data.ByteString.Lazy     as LBS
@@ -101,17 +102,24 @@ getBot _id = do
       Nothing  -> error "getBot: failed to decode saved bot"
     Nothing -> error "getBot: failed to find"
 
-botDirectives :: MonadIO m => BotSpec m -> Message -> m ()
+botDirectives :: (MonadBaseControl IO m, MonadIO m) => BotSpec m -> Message -> m ()
 botDirectives b msg = do
   let applicable = L.filter (\p -> handlerApplies p b msg) (botHandlers b)
 
   -- TODO:
-  -- * ensure that plugins run in isolation and crash safely
   -- * enforce only one match?
+  -- * respond to _direct_ messages if nothing matches
   unless (null applicable) $ do
     let names = L.map handlerName applicable
     Log.handlerMatch (botRecord b) msg names
-    forM_ applicable $ \p -> runHandler p b msg
+    forM_ applicable $ \p -> tryRun p b msg
+
+tryRun :: (MonadBaseControl IO m, MonadIO m) => Handler m -> BotSpec m -> Message -> m ()
+tryRun h b m = do
+  result <- try $ runHandler h b m
+  case result of
+    Left err -> Log.handlerCrash (botRecord b) err
+    Right  _ -> return ()
 
 buildBot :: Adapter m -> [Plugin m] -> Bot -> BotSpec m
 buildBot botAdapter botPlugins botRecord = BotSpec{..}

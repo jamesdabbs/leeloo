@@ -17,7 +17,7 @@ import Bot.Supervisor (WorkerStatus(..), halt, monitor, status)
 import qualified Logging as Log
 import Plugin
 
-import Plugins.Die
+import Plugins.Divide
 import Plugins.Echo
 import Plugins.Help
 import Plugins.Panic
@@ -44,7 +44,7 @@ startCli conf = do
   either (error . show) return result
 
 defaultPlugins :: [Plugin L]
-defaultPlugins = [help, echo, score, panic, die]
+defaultPlugins = [help, echo, score, panic, divide]
 
 
 buildSlackBot :: Bot -> BotSpec L

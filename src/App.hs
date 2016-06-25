@@ -1,7 +1,12 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 module App
   ( AppConf(..)
   , AppError(..)
@@ -18,6 +23,9 @@ import           Control.Monad.Except        (MonadError)
 import           Control.Monad.IO.Class      (MonadIO, liftIO)
 import           Control.Monad.Logger        (MonadLogger(..), toLogStr)
 import           Control.Monad.Reader        (MonadReader(..), asks)
+import           Control.Monad.Base
+import           Control.Monad.Trans.Class
+import           Control.Monad.Trans.Control
 import           Control.Monad.Trans.Except  (ExceptT, runExceptT)
 import           Control.Monad.Trans.Reader  (ReaderT, runReaderT)
 import           Database.Redis              (Connection, connect, defaultConnectInfo)
@@ -58,6 +66,24 @@ data BotStatus = BotStatus
 newtype L' m a = L'
   { unL' :: ExceptT AppError (ReaderT AppConf m) a
   } deriving (Applicative, Functor, Monad, MonadIO, MonadReader AppConf, MonadError AppError)
+
+deriving instance MonadBase b m => MonadBase b (L' m)
+
+instance MonadTrans L' where
+  lift = L' . lift . lift
+
+-- TODO: understand this more better
+instance MonadBaseControl IO m => MonadBaseControl IO (L' m) where
+  type StM (L' m) a = ComposeSt L' m a
+  liftBaseWith      = defaultLiftBaseWith
+  restoreM          = defaultRestoreM
+
+instance MonadTransControl L' where
+  type StT L' a = StT (ExceptT AppError) (StT (ReaderT AppConf) a)
+  liftWith f = L' $ liftWith $ \run ->
+                                liftWith $ \run' ->
+                                            f (run' . run . unL')
+  restoreT = L' . restoreT . restoreT
 
 type L = L' IO
 

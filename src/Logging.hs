@@ -7,6 +7,7 @@ module Logging
   , bracket
   , colorize
   , newLogger
+  , handlerCrash
   , handlerMatch
   , pprint
   , worker
@@ -15,6 +16,7 @@ module Logging
 import Base
 import Plugin (BotSpec(..))
 
+import           Control.Exception          (SomeException)
 import           Control.Lens               ((^.))
 import           Control.Monad.Logger       (MonadLogger(..))
 import           Data.Attoparsec.Lazy       (Result(..), parse)
@@ -60,6 +62,15 @@ blog bot msg = liftIO . T.putStrLn . T.concat $
   [ bracket Green bot
   , " "
   , T.concat msg
+  ]
+
+handlerCrash :: MonadIO m => Bot -> SomeException -> m ()
+handlerCrash Bot{..} err = liftIO . T.putStrLn . T.concat $
+  [ bracket Red botName
+  , " "
+  , colorize Red "CRASHED"
+  , " "
+  , T.pack (show err)
   ]
 
 worker :: MonadIO m => Text -> Text -> m ()

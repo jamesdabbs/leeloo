@@ -34,7 +34,7 @@ library
                      , Logging
                      , Plugin
                      , Plugins.Base
-                     , Plugins.Die
+                     , Plugins.Divide
                      , Plugins.Echo
                      , Plugins.Help
                      , Plugins.Panic
@@ -53,7 +53,9 @@ library
                      , hedis-namespace
                      , lens
                      , lens-aeson
+                     , lifted-base
                      , monad-logger
+                     , monad-control
                      , mtl
                      , network
                      , resourcet
@@ -61,6 +63,7 @@ library
                      , stm
                      , text
                      , transformers
+                     , transformers-base
                      , websockets
                      , wreq
                      , wuss
