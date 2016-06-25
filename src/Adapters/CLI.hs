@@ -1,17 +1,22 @@
 module Adapters.CLI
   ( adapter
+  , wait
   ) where
 
 import Base
-import Bot (botDirectives)
+import Bot          (botDirectives)
 import Plugins.Base (whitespace)
+import qualified Logging as Log
 
+import           Control.Concurrent.MVar
 import           Data.Attoparsec.Text
 import           Data.Maybe     (isJust)
 import qualified Data.List      as L
 import qualified Data.Text      as T
 import qualified Data.Text.IO   as T
+import           System.Console.ANSI
 import           System.IO
+import           System.IO.Unsafe (unsafePerformIO)
 
 import App
 import Plugin
@@ -26,32 +31,53 @@ adapter = Adapter
   , getRoomMembers = _getRoomMembers
   }
 
+done :: MVar ()
+{-# NOINLINE done #-}
+done = unsafePerformIO newEmptyMVar
+
+wait :: MonadIO m => m ()
+{-# NOINLINE wait #-}
+wait = liftIO $ takeMVar done
+
 _bootBot :: BotSpec L -> L ()
 _bootBot spec@BotSpec{..} = do
   let Bot{..} = botRecord
-  liftIO . putStrLn $ "Starting " ++ show botName
   let
     loop :: L ()
     loop = do
+      _log [ Log.bracket botC botName
+           , Log.bracket roomC "here"
+           , " < "
+           ]
       input <- liftIO $ do
-        T.putStr $ botName <> " (here) > "
         hFlush stdout
         T.getLine
-      unless (input == "q") $ do
-        case parseOnly messageParser input of
-          Left  err -> liftIO . putStrLn $ "Could not parse input: " ++ err
-          Right msg -> botDirectives spec msg
-        loop
+      if input == "q"
+        then liftIO $ putMVar done ()
+        else do
+          case parseOnly messageParser input of
+            Left  err -> liftIO . putStrLn $ "Could not parse input: " ++ err
+            Right msg -> botDirectives spec msg
+          loop
   loop
 
+_log :: MonadIO m => [Text] -> m ()
+_log = liftIO . T.putStr . T.concat
+
 _send :: Text -> Text -> Text -> L ()
-_send bot target text = liftIO . T.putStrLn $ target <> "> " <> bot <> ": " <> text
+_send bot target text = _log
+  [ Log.bracket botC bot
+  , target
+  , " > "
+  , Log.colorize botC text
+  , "\n"
+  ]
 
 _sendUser :: Bot -> User -> Text -> L ()
-_sendUser Bot{..} User{..} = _send botName ("direct:" <> userName)
+_sendUser Bot{..} User{..} = _send botName $ Log.bracket userC userName
 
 _sendRoom :: Bot -> Room -> Text -> L ()
-_sendRoom Bot{..} Room{..} = _send botName ("room:" <> roomName)
+_sendRoom Bot{..} Room{..} = _send botName $ Log.bracket roomC roomName
 
 _parseCommand :: Bot -> Message -> Maybe Text
 _parseCommand bot Message{..} = case parseOnly (commandParser bot) messageText of
@@ -115,3 +141,8 @@ rooms =
 
 roomNamed :: Text -> Maybe Room
 roomNamed name = fst <$> L.find (\(r,_) -> roomName r == name) rooms
+
+botC, roomC, userC :: Color
+botC  = Green
+roomC = Yellow
+userC = Cyan

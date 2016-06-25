@@ -30,10 +30,11 @@ library
                      , Base
                      , Bot
                      , Bots
-                     , Bot.Registry
+                     , Bot.Supervisor
                      , Logging
                      , Plugin
                      , Plugins.Base
+                     , Plugins.Die
                      , Plugins.Echo
                      , Plugins.Help
                      , Plugins.Panic
@@ -57,6 +58,7 @@ library
                      , network
                      , resourcet
                      , servant-server
+                     , stm
                      , text
                      , transformers
                      , websockets

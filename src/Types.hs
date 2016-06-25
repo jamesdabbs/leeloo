@@ -4,6 +4,7 @@ module Types
   , BotId
   , BotInfo(..)
   , BotName
+  , BotStatus(..)
   , BotToken
   , Message(..)
   , Namespace
@@ -13,6 +14,7 @@ module Types
   , User(..)
   ) where
 
+import           Control.Concurrent     (ThreadId)
 import           Control.Monad.IO.Class (MonadIO)
 import           Data.Text              (Text)
 import           Data.ByteString        (ByteString)
@@ -56,6 +58,12 @@ data Message = Message -- an _incoming_ message
 data BotInfo = BotInfo
   { botInfoToken :: BotToken
   , botInfoIcon  :: Text
+  }
+
+data BotStatus = BotStatus
+  { botSpec     :: !Bot
+  , botThreadId :: !(Maybe ThreadId)
+  -- TODO: other metadata, last checkin, list of plugins, &c.
   }
 
 class MonadIO m => BotM m where

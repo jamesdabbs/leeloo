@@ -4,9 +4,6 @@ module Plugins.Score
   ( score
   ) where
 
--- import Base
--- import App (AppError)
--- import Bot (redis)
 import Plugins.Base
 
 import qualified Data.Text                as T

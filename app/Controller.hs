@@ -19,8 +19,7 @@ import Data.Aeson
 
 import App
 import Bot
-import Bots         (buildSlackBot, defaultPlugins)
-import Bot.Registry (BotStatus(..), getStatuses)
+import Bots   (buildSlackBot, startBot, stopBot, defaultPlugins, getStatuses)
 import Plugin
 
 import qualified Adapters.Slack.Api as S
@@ -40,21 +39,22 @@ instance ToJSON BotStatus where
       thread = drop 9 $ show botThreadId
 
 botIndex :: L [BotStatus]
-botIndex = asks bots >>= getStatuses
+botIndex = savedBots >>= getStatuses
 
 botCreate :: BotInfo -> L ()
 botCreate info = do
   record <- S.getBotInfo info
   saveBot record
-  runBot $ buildSlackBot record
+  startBot $ buildSlackBot record
 
+-- FIXME: need to enforce ownership of bot!
 botStart :: BotId -> L ()
 botStart _id = do
   record <- getBot _id
-  runBot $ buildSlackBot record
+  startBot $ buildSlackBot record
 
 botStop :: BotId -> L ()
-botStop = error "botStop"
+botStop = stopBot
 
 oauthCallback :: Maybe Text -> L ()
 oauthCallback mcode = case mcode of
@@ -81,7 +81,7 @@ registerBot user token = do
   bot <- S.getBotInfo $ BotInfo token "pig"
   saveBot bot
   -- TODO: record bot owner / user
-  runBot $ buildSlackBot bot
+  startBot $ buildSlackBot bot
   return bot
 
 welcomeUser :: Bot -> AppUser -> L ()

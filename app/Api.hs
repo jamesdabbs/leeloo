@@ -17,7 +17,6 @@ import Servant
 
 import Base
 import App
-import Bot.Registry (BotStatus)
 import Bots (startSavedBots)
 import qualified Controller as C
 import Plugin

@@ -4,10 +4,7 @@ module Bot
   , botToAppUser
   , buildBot
   , getBot
-  , getStatuses
-  , newBotRegistry
   , redis
-  , runBot
   , saveAppUser
   , saveBot
   , savedBots
@@ -17,8 +14,6 @@ import Base
 import App
 import Plugin
 import qualified Logging as Log
-
-import Bot.Registry (getStatuses, newBotRegistry)
 
 import           Data.Aeson
 import qualified Data.ByteString          as BS
@@ -105,12 +100,6 @@ getBot _id = do
       -- TODO: MonadError
       Nothing  -> error "getBot: failed to decode saved bot"
     Nothing -> error "getBot: failed to find"
-
--- FIXME: this needs to do something if this bot spec is already running (reboot it?), not boot up two copies
-runBot :: MonadIO m => BotSpec m -> m ()
-runBot spec@BotSpec{..} = do
-  Log.bootBot spec
-  bootBot botAdapter spec
 
 botDirectives :: MonadIO m => BotSpec m -> Message -> m ()
 botDirectives b msg = do

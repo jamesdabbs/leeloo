@@ -2,7 +2,10 @@
 module Bots
  ( buildSlackBot
  , defaultPlugins
+ , getStatuses
  , mkConf
+ , startBot
+ , stopBot
  , startCli
  , startSavedBots
  ) where
@@ -10,8 +13,11 @@ module Bots
 import Base
 import App
 import Bot
+import Bot.Supervisor (halt, monitor, status)
+import qualified Logging as Log
 import Plugin
 
+import Plugins.Die
 import Plugins.Echo
 import Plugins.Help
 import Plugins.Panic
@@ -20,22 +26,25 @@ import Plugins.Score
 import qualified Adapters.CLI as CLI
 import qualified Adapters.Slack as Slack
 
+import qualified Data.Map as M
+
+import Control.Concurrent (threadDelay)
+
 startCli :: AppConf -> IO ()
 startCli conf = do
-  putStrLn "Booting bot"
   result <- runL conf $ do
-    -- b <- head <$> savedBots
     let b = Bot { botId     = "B01"
                 , botName   = "leeloo"
                 , botIcon   = "^_^"
                 , botToken  = "_token_"
                 , botUserId = "B01"
                 }
-    runBot $ buildBot CLI.adapter defaultPlugins b
+    startBot $ buildBot CLI.adapter defaultPlugins b
+    CLI.wait
   either (error . show) return result
 
 defaultPlugins :: [Plugin L]
-defaultPlugins = [help, echo, score, panic]
+defaultPlugins = [help, echo, score, panic, die]
 
 
 buildSlackBot :: Bot -> BotSpec L
@@ -45,3 +54,25 @@ startSavedBots :: L ()
 startSavedBots = do
   bots <- savedBots
   mapM_ (bootBot Slack.adapter . buildSlackBot) bots
+
+startBot :: BotSpec L -> L ()
+startBot spec@BotSpec{..} = do
+  Log.bootBot spec
+  conf <- ask
+  liftIO $ monitor (bots conf) (botId botRecord) (runL conf $ bootBot botAdapter spec)
+
+stopBot :: BotId -> L ()
+stopBot _id = do
+  s <- supervisor
+  liftIO $ halt s _id
+
+getStatuses :: [Bot] -> L [BotStatus]
+getStatuses bs = do
+  stats <- supervisor >>= liftIO . status
+  return $ map (buildStatus stats) bs
+  where
+    buildStatus :: M.Map BotId (Maybe ThreadId) -> Bot -> BotStatus
+    buildStatus map bot = BotStatus
+      { botSpec     = bot
+      , botThreadId = join $ M.lookup (botId bot) map
+      }

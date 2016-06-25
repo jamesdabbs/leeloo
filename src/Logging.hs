@@ -4,9 +4,13 @@ module Logging
   ( Logger
   , apiCall
   , bootBot
+  , blog
+  , bracket
+  , colorize
   , newLogger
   , handlerMatch
   , pprint
+  , worker
   ) where
 
 import Base
@@ -57,17 +61,33 @@ bootBot BotSpec{..} = blog (botName botRecord) [ "Booting" ]
 
 blog :: MonadIO m => BotName -> [Text] -> m ()
 blog bot msg = liftIO . T.putStrLn . T.concat $
-  [ "["
-  , colorize Green bot
-  , "] "
+  [ bracket Green bot
+  , " "
   , T.concat msg
   ]
 
+worker :: MonadIO m => Text -> m ()
+worker msg = liftIO . T.putStrLn . T.concat $
+  [ bracket Blue "supervisor"
+  , " "
+  , msg
+  ]
+
 colorize :: Color -> Text -> Text
-colorize color str = T.concat
-  [ T.pack $ setSGRCode [SetColor Foreground Vivid color]
+colorize = colorize' Vivid
+
+colorize' :: ColorIntensity -> Color -> Text -> Text
+colorize' int color str = T.concat
+  [ T.pack $ setSGRCode [SetColor Foreground int color]
   , str
   , T.pack $ setSGRCode [Reset]
+  ]
+
+bracket :: Color -> Text -> Text
+bracket c text = T.concat
+  [ colorize' Dull  c "["
+  , colorize' Vivid c text
+  , colorize' Dull  c "]"
   ]
 
 pprint :: LBS.ByteString -> LBS.ByteString

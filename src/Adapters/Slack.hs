@@ -24,7 +24,6 @@ import qualified Wuss                 as WS (runSecureClient)
 
 import App
 import Bot          (botDirectives)
-import Bot.Registry (addBot)
 import Plugin
 import Plugins.Base (whitespace)
 
@@ -48,23 +47,7 @@ _bootBot spec@BotSpec{..} = do
 
     WS.runSecureClient (T.unpack domain) 443 (T.unpack path) $ \conn -> do
       WS.forkPingThread conn 15
-
-      -- TODO: don't hardcode this
-      S.sendMessage botRecord "G087UQUDA" "Reporting for duty"
-
-      let loop = forever $ WS.receiveData conn >>= dispatchEvents conf spec
-          reloop = forkFinally loop $ \res -> do
-            case res of
-              Left e -> do
-                -- TODO: send this to e.g. Rollbar
-                -- - would it be better to have Redis queue of bots to boot, and a separate manager, rather than
-                -- - have each proccess reboot itself? Probably.
-                T.putStrLn $ "Rebooting " <> botName botRecord <> " after exiting with error " <> (T.pack $ show e)
-              Right _ -> return ()
-            void reloop
-
-      pid <- reloop
-      addBot (bots conf) botRecord pid
+      forever $ WS.receiveData conn >>= dispatchEvents conf spec
 
 runBot :: AppConf -> Bot -> L a -> IO a
 runBot conf _ l = runL conf l >>= \case

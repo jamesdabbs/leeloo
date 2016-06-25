@@ -10,6 +10,7 @@ module App
   , L
   , mkConf
   , runL
+  , supervisor
   ) where
 
 import           Control.Monad.Except        (MonadError)
@@ -24,11 +25,11 @@ import           System.Environment          (getEnv)
 
 import Types
 import Adapters.Slack.Types (Credentials(..))
-import Bot.Registry
-import Logging (Logger, newLogger)
+import Bot.Supervisor       (Supervisor, newSupervisor)
+import Logging              (Logger, newLogger)
 
 data AppConf = AppConf
-  { bots                :: BotRegistry
+  { bots                :: Supervisor BotId
   , redisConn           :: Connection
   , redisNS             :: Text
   , logger              :: Logger
@@ -79,8 +80,11 @@ getSlackCredentials = Credentials
 
 mkConf :: IO AppConf
 mkConf = AppConf
-  <$> newBotRegistry
+  <$> newSupervisor
   <*> connect defaultConnectInfo
   <*> pure "leeloo"
   <*> newLogger
   <*> getSlackCredentials
+
+supervisor :: L (Supervisor BotId)
+supervisor = asks bots
