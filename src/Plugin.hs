@@ -15,6 +15,7 @@ module Plugin
   , botHandlers
   , mkHandler
   , handlerApplies
+  , handlerCommandOnly
   , handlerExamples
   , handlerName
   , pluginExamples
@@ -107,6 +108,9 @@ runParser parser handler bot msg@Message{..} =
 
 handlerApplies :: Monad m => Handler m -> BotSpec m -> Message -> Bool
 handlerApplies p b m = isNothing $ handlerTest p b m
+
+handlerCommandOnly :: Handler m -> Bool
+handlerCommandOnly = handlerCommand
 
 runHandler :: Monad m => Handler m -> BotSpec m -> Message -> m ()
 runHandler = handlerRun

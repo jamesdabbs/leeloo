@@ -64,13 +64,17 @@ _bootBot spec@BotSpec{..} = do
 _log :: MonadIO m => [Text] -> m ()
 _log = liftIO . T.putStr . T.concat
 
+outPrompt :: Text
+outPrompt = Log.colorize' Dull botC " > "
+
+prefixLines :: Text -> Text -> Text
+prefixLines pre corpus = T.unlines . map (\l -> pre <> l) $ T.lines corpus
+
 _send :: Text -> Text -> Text -> L ()
 _send bot target text = _log
   [ Log.bracket botC bot
   , target
-  , " > "
-  , Log.colorize botC text
-  , "\n"
+  , prefixLines outPrompt text
   ]
 
 _sendUser :: Bot -> User -> Text -> L ()

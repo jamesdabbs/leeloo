@@ -119,6 +119,7 @@ tryRun :: (MonadBaseControl IO m, MonadIO m) => Handler m -> BotSpec m -> Messag
 tryRun h b m = do
   result <- try $ runHandler h b m
   case result of
+    -- TODO: respond to user if handler crashes
     Left err -> Log.handlerCrash (botRecord b) err
     Right  _ -> return ()
 

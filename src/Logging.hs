@@ -6,6 +6,7 @@ module Logging
   , blog
   , bracket
   , colorize
+  , colorize'
   , newLogger
   , handlerCrash
   , handlerMatch

@@ -55,8 +55,6 @@ getRoom mname = case mname of
 
 startPoll :: (MonadError AppError m, BotM m) => Room -> H m ()
 startPoll source = do
-  redis $ do
-    R.get "TODO"
   members <- getRoomMembers source
   forM_ members $ \u -> sendToUser u "Hey, how are you doing today (on a scale of 1-6)?"
 
