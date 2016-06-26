@@ -19,7 +19,8 @@ import Base
 import App
 import Bots (startSavedBots)
 import qualified Controller as C
-import Plugin
+import Replicant
+import Replicant.Plugin
 
 import qualified Data.Text                as T
 import qualified Data.Text.IO             as T

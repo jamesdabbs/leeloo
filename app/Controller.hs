@@ -17,13 +17,12 @@ import Base
 import Data.Aeson
 
 import App
-import Bot.Supervisor (WorkerState(..), WorkerStatus(..))
+import Replicant.Bot.Supervisor (WorkerState(..), WorkerStatus(..))
 import Bots
-import Plugin
 
-import qualified Adapters.Slack.Api as S
-
-import qualified Data.Text as T
+import Replicant hiding (startBot)
+import Replicant.Plugin
+import qualified Replicant.Adapters.Slack.Api as S
 
 instance FromJSON BotInfo where
   parseJSON = withObject "bot_info" $ \v -> do

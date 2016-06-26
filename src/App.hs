@@ -20,24 +20,21 @@ module App
   , supervisor
   ) where
 
-import           Control.Monad.Except        (MonadError)
-import           Control.Monad.IO.Class      (MonadIO, liftIO)
+import           Control.Monad               (void)
+import           Control.Monad.Except        (throwError)
+import           Control.Monad.IO.Class      (liftIO)
 import           Control.Monad.Logger        (MonadLogger(..), toLogStr)
 import           Control.Monad.Reader        (MonadReader(..), asks)
-import           Control.Monad.Base
-import           Control.Monad.Trans.Class
-import           Control.Monad.Trans.Control
-import           Control.Monad.Trans.Except  (ExceptT, runExceptT)
-import           Control.Monad.Trans.Reader  (ReaderT, runReaderT)
-import           Database.Redis              (Connection, connect, defaultConnectInfo)
+import           Database.Redis.Namespace    (Connection, connect, defaultConnectInfo)
 import           Data.ByteString             (ByteString)
 import           Data.Text                   (Text, pack)
 import           System.Environment          (getEnv)
 
-import Types
-import Adapters.Slack.Types (Credentials(..))
-import Bot.Supervisor       (Supervisor, WorkerStatus, newSupervisor)
-import Logging              (Logger, newLogger)
+import Replicant
+
+import Replicant.Bot.Supervisor       (WorkerStatus(..))
+import Replicant.Adapters.Slack.Types (Credentials(..))
+import Logging                        (Logger, newLogger)
 
 data AppConf = AppConf
   { bots                :: Supervisor BotId
@@ -68,44 +65,24 @@ data BotStatus = BotStatus
   , bsStatus :: !(Maybe WorkerStatus)
   }
 
-newtype L' m a = L'
-  { unL' :: ExceptT AppError (ReaderT AppConf m) a
-  } deriving (Applicative, Functor, Monad, MonadIO, MonadReader AppConf, MonadError AppError)
-
-deriving instance MonadBase b m => MonadBase b (L' m)
-
-instance MonadTrans L' where
-  lift = L' . lift . lift
-
--- TODO: understand this more better
-instance MonadBaseControl IO m => MonadBaseControl IO (L' m) where
-  type StM (L' m) a = ComposeSt L' m a
-  liftBaseWith      = defaultLiftBaseWith
-  restoreM          = defaultRestoreM
-
-instance MonadTransControl L' where
-  type StT L' a = StT (ExceptT AppError) (StT (ReaderT AppConf) a)
-  liftWith f = L' $ liftWith $ \run ->
-                                liftWith $ \run' ->
-                                            f (run' . run . unL')
-  restoreT = L' . restoreT . restoreT
-
-type L = L' IO
+type L = ReplicantT AppError AppConf IO
 
 instance MonadLogger L where
   monadLoggerLog loc src lvl msg = do
     l <- asks logger
     liftIO . l $ toLogStr msg
 
-instance BotM L where
+instance BotM AppError L where
   redisPool      = asks redisConn
   redisNamespace = return "leeloo"
-
-runL' :: Monad m => AppConf -> L' m a -> m (Either AppError a)
-runL' conf m = runReaderT (runExceptT $ unL' m) conf
+  redisError _   = throwError RedisError
+  botSupervisor  = asks bots
+  runIO = do
+    conf <- ask
+    return $ void . runL conf
 
 runL :: AppConf -> L a -> IO (Either AppError a)
-runL = runL'
+runL = runReplicantT
 
 env :: String -> IO Text
 env key = pack <$> getEnv key

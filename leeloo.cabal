@@ -19,28 +19,16 @@ library
   default-extensions:  LambdaCase
                      , OverloadedStrings
                      , RecordWildCards
-                     , TemplateHaskell
   ghc-options:         -Wall
   hs-source-dirs:      src
-  exposed-modules:     Adapters.CLI
-                     , Adapters.Slack
-                     , Adapters.Slack.Api
-                     , Adapters.Slack.Types
-                     , App
+  exposed-modules:     App
                      , Base
                      , Bot
                      , Bots
-                     , Bot.Supervisor
                      , Logging
-                     , Plugin
-                     , Plugins.Base
-                     , Plugins.Divide
-                     , Plugins.Echo
-                     , Plugins.Help
                      , Plugins.Panic
-                     , Plugins.Score
-                     , Types
   build-depends:       base >= 4.7 && < 5
+                     , replicant
                      , aeson
                      , aeson-pretty
                      , ansi-terminal
@@ -49,25 +37,14 @@ library
                      , containers
                      , either
                      , fast-logger
-                     , hedis
                      , hedis-namespace
-                     , lens
-                     , lens-aeson
-                     , lifted-base
                      , monad-logger
-                     , monad-control
                      , mtl
-                     , network
                      , resourcet
-                     , servant-server
-                     , stm
                      , text
                      , transformers
-                     , transformers-base
                      , uuid
-                     , websockets
                      , wreq
-                     , wuss
 
 executable leeloo
   default-language:    Haskell2010
@@ -82,6 +59,7 @@ executable leeloo
                      , Controller
   build-depends:       base
                      , leeloo
+                     , replicant
                      , aeson
                      , servant-server
                      , text

@@ -17,21 +17,18 @@ module Bots
  ) where
 
 import Base
+import Replicant hiding (startBot)
+import Replicant.Bot.Supervisor (status)
 import App
 import Bot
-import Bot.Supervisor (WorkerStatus(..), halt, monitor, status)
-import qualified Logging as Log
-import Plugin
 
-import Plugins.Divide
-import Plugins.Echo
-import Plugins.Help
 import Plugins.Panic
-import Plugins.Score
+--import qualified Logging as Log
 
-import qualified Adapters.CLI       as CLI
-import qualified Adapters.Slack     as Slack
-import qualified Adapters.Slack.Api as Slack
+import qualified Replicant                    as R
+import qualified Replicant.Adapters.CLI       as CLI
+import qualified Replicant.Adapters.Slack     as Slack
+import qualified Replicant.Adapters.Slack.Api as Slack
 
 import qualified Data.ByteString          as BS
 import qualified Data.List                as L
@@ -39,8 +36,6 @@ import qualified Data.Map                 as M
 import qualified Data.UUID                as UUID
 import qualified Data.UUID.V4             as UUID
 import qualified Database.Redis.Namespace as R
-
-import Control.Concurrent (threadDelay)
 
 startCli :: AppConf -> IO ()
 startCli conf = do
@@ -66,15 +61,9 @@ startSavedBots :: L ()
 startSavedBots = allSavedBots >>= mapM_ (startBot . buildSlackBot)
 
 startBot :: BotSpec L -> L ()
-startBot spec@BotSpec{..} = do
-  let Bot{..} = botRecord
+startBot spec = do
   conf <- ask
-  liftIO $ monitor (bots conf) botName botId (runL conf $ bootBot botAdapter spec)
-
-stopBot :: BotId -> L ()
-stopBot _id = do
-  s <- supervisor
-  liftIO $ halt s _id
+  R.startBot (void . runL conf) spec
 
 getStatuses :: [Bot] -> L [BotStatus]
 getStatuses bs = do

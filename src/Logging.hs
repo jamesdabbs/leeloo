@@ -15,14 +15,14 @@ module Logging
   ) where
 
 import Base
-import Plugin (BotSpec(..))
+import Replicant
 
 import           Control.Exception          (SomeException)
-import           Control.Lens               ((^.))
+--import           Control.Lens               ((^.))
 import           Control.Monad.Logger       (MonadLogger(..))
 import           Data.Attoparsec.Lazy       (Result(..), parse)
 import           Data.Aeson                 (json')
-import           Data.Aeson.Lens            (_Bool, key)
+--import           Data.Aeson.Lens            (_Bool, key)
 import           Data.Aeson.Encode.Pretty   (encodePretty)
 import           Data.ByteString.Lazy.Char8 as LBS
 import qualified Data.Text                  as T

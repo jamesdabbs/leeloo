@@ -18,8 +18,6 @@ import Data.Monoid                  as Base ((<>))
 import Data.Text                    as Base (Text)
 import Data.Text.Encoding           as Base (encodeUtf8, decodeUtf8)
 
-import Types as Base
-
 import qualified Debug.Trace as Debug
 
 tr :: Show a => a -> b -> b
