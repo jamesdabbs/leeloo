@@ -10,13 +10,15 @@ module Main where
 
 import Api                (startApi)
 import Bots               (mkConf, startCli)
-import System.Environment (getArgs)
+import System.Environment (getArgs, lookupEnv)
 
 main :: IO ()
 main = do
   conf <- mkConf
   args <- getArgs
 
+  port <- maybe 3000 read <$> lookupEnv "PORT"
+
   if null args || head args == "api"
-    then startApi 3000 conf
+    then startApi port conf
     else startCli conf

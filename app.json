@@ -1,0 +1,8 @@
+{
+    "name": "leeloo",
+    "description": "Moolteebot",
+    "image": "heroku/cedar:14",
+    "addons": [
+        "redistogo:nano"
+    ]
+}
