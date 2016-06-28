@@ -1,9 +1,6 @@
 -- TODO
 -- Flesh out panic checking logic
--- Work on error handling
-   -- an error in a handler should send a message to Slack
-   -- should _not_ impact any other handlers
-   -- _should_ force a restart of the offending bot
+-- An error in a handler should send a message to Slack?
 
 {-# LANGUAGE OverloadedStrings #-}
 module Main where

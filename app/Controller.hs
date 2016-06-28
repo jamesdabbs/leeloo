@@ -24,6 +24,10 @@ import Replicant.Types
 import Replicant.Plugin
 import qualified Replicant.Adapters.Slack.Api as S
 
+import           Data.Maybe                  (fromMaybe)
+import qualified Data.Text                   as T
+import           System.Environment          (lookupEnv)
+
 instance FromJSON BotInfo where
   parseJSON = withObject "bot_info" $ \v -> do
     botInfoToken <- v .: "token"
@@ -77,7 +81,9 @@ oauthCallback mcode = case mcode of
     bot <- registerBot user b
     welcomeUser bot user
 
-    redirectTo $ "/todo#token=" <> decodeUtf8 token
+    domain <- fromMaybe "localhost:3000" <$> liftIO (lookupEnv "FRONTEND_DOMAIN")
+
+    redirectTo $ T.pack domain <> "/#token=" <> decodeUtf8 token
 
 redirectTo :: Text -> L () -- TODO: I don't love that this is an "error" an not well-reflected in the types
 redirectTo url = throwError $ Redirect url

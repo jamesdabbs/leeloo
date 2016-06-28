@@ -1,12 +1,6 @@
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE UndecidableInstances #-}
 module App
   ( AppConf(..)
   , AppError(..)
@@ -27,8 +21,6 @@ import           Data.Maybe                  (fromMaybe)
 import           Data.Text                   (pack)
 import           Database.Redis.Namespace    (Connection, ConnectInfo(..), PortID(PortNumber)
                                              , connect, defaultConnectInfo)
-import           Network.Socket              (PortNumber(PortNum))
-
 import qualified Rollbar
 import           System.Environment          (getEnv, lookupEnv)
 
@@ -113,14 +105,17 @@ getRollbarSettings _ = return Nothing
 getRedisConnection :: AppEnv -> IO Connection
 getRedisConnection Prod = do -- TODO: make this conditional on presence of Redis ENV vars only
   host  <- getEnv "REDIS_HOST"
-  port  <- read <$> getEnv "REDIS_PORT"
+  -- TODO: what's going wrong with this read instance?
+  -- port  <- read <$> getEnv "REDIS_PORT" -- :: IO PortNumber
   pool  <- maybe 10 read <$> lookupEnv "REDIS_MAX_CONNECTIONS"
   auth  <- lookupEnv "REDIS_AUTH"
-  connect $ defaultConnectInfo { connectHost           = host
-                               , connectPort           = PortNumber $ PortNum port
-                               , connectMaxConnections = pool
-                               , connectAuth           = BSC.pack <$> auth
-                               }
+  let info = defaultConnectInfo { connectHost           = host
+                                , connectPort           = PortNumber 10500
+                                , connectMaxConnections = pool
+                                , connectAuth           = BSC.pack <$> auth
+                                }
+  print info
+  connect info
 getRedisConnection _ = connect defaultConnectInfo
 
 mkConf :: IO AppConf

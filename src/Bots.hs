@@ -33,11 +33,9 @@ import qualified Replicant.Adapters.Slack.Api as Slack
 
 import           Control.Concurrent.Lifted (fork)
 import           Control.Exception.Safe    (SomeException, catchAny, throw)
-import           Control.Monad.Logger      (logDebugS)
 import qualified Data.ByteString           as BS
 import qualified Data.List                 as L
 import qualified Data.Map                  as M
-import qualified Data.Text                 as T
 import qualified Data.UUID                 as UUID
 import qualified Data.UUID.V4              as UUID
 import qualified Database.Redis.Namespace  as R
@@ -122,7 +120,7 @@ registerBot AppUser{..} token = do
         uid = encodeUtf8 appUserId
     R.hset "bot-owners" bid uid
     R.sadd ("owned-bots:" <> uid) [bid]
-  startBot $ buildSlackBot bot
+  fork . startBot $ buildSlackBot bot
   return bot
 
 welcomeUser :: Bot -> AppUser -> L ()
