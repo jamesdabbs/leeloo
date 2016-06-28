@@ -75,7 +75,7 @@ startBot spec = asks supervisor >>= \s -> R.startBot s notify spec
     notify WorkerDone    = Log.worker botName "exited"
     notify (WorkerCrashed ex) = do
       sendToRollbar ("[Bot] " <> botName <> " (" <> botId <> ")") ex
-      Log.worker botName $ "crashed: " <> T.pack (show ex)
+      Log.worker botName $ "crashed: " <> tshow ex
     notify _ = return ()
 
 stopBot :: BotId -> L ()
@@ -150,10 +150,12 @@ reportErrors label = flip catchAny $ \e -> do
   throw e
 
 sendToRollbar :: Text -> SomeException -> L ()
-sendToRollbar label e = do
-  settings <- asks rollbarSettings
-  -- TODO: report more useful information here (authentication token, user data, backtrace where available)
-  Rollbar.reportErrorS settings opts label $ T.pack $ show e
+sendToRollbar label e =
+  asks rollbarSettings >>= \case
+    -- TODO: report more useful information here (authentication token,
+    --   user data, backtrace where available)
+    Just settings -> Rollbar.reportErrorS settings opts label $ tshow e
+    _ -> return ()
   where
     opts :: Rollbar.Options
     opts = Rollbar.Options

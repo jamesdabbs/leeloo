@@ -71,7 +71,7 @@ handlerCrash Bot{..} err = liftIO . T.putStrLn . T.concat $
   , " "
   , colorize Red "CRASHED"
   , " "
-  , T.pack (show err)
+  , tshow err
   ]
 
 worker :: MonadIO m => Text -> Text -> m ()

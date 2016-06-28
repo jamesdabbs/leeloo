@@ -42,6 +42,7 @@ library
                      , lifted-base
                      , monad-logger
                      , mtl
+                     , network >= 2.6.2.1
                      , resourcet
                      , rollbar
                      , safe-exceptions

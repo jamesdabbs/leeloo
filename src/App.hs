@@ -17,33 +17,34 @@ module App
   , L
   , mkConf
   , runL
-  , supervisor
   ) where
 
-import           Control.Monad               (void)
-import           Control.Monad.Except        (throwError)
-import           Control.Monad.IO.Class      (liftIO)
-import           Control.Monad.Logger        (MonadLogger(..), toLogStr)
-import           Control.Monad.Reader        (MonadReader(..), asks)
-import           Database.Redis.Namespace    (Connection, connect, defaultConnectInfo)
+import Base
+import           Control.Monad.Logger        (MonadLogger(..))
 import           Data.ByteString             (ByteString)
-import           Data.Text                   (Text, pack)
+import qualified Data.ByteString.Char8       as BSC
+import           Data.Maybe                  (fromMaybe)
+import           Data.Text                   (pack)
+import           Database.Redis.Namespace    (Connection, ConnectInfo(..), PortID(PortNumber)
+                                             , connect, defaultConnectInfo)
+import           Network.Socket              (PortNumber(PortNum))
+
 import qualified Rollbar
-import           System.Environment          (getEnv)
+import           System.Environment          (getEnv, lookupEnv)
 
 import Replicant
 
-import Replicant.Bot.Supervisor       (WorkerStatus(..))
 import Replicant.Adapters.Slack.Types (Credentials(..))
 import Logging                        (Logger, newLogger)
 
 data AppConf = AppConf
-  { supervisor          :: Supervisor L BotId
+  { appEnv              :: AppEnv
+  , supervisor          :: Supervisor L BotId
   , redisConn           :: Connection
   , redisNS             :: Text
   , logger              :: Logger
   , slackAppCredentials :: Credentials
-  , rollbarSettings     :: Rollbar.Settings
+  , rollbarSettings     :: Maybe Rollbar.Settings
   }
 
 type AppUserToken = Text
@@ -59,6 +60,8 @@ data AppError = NotFound
               | RedisError
               | NotAuthenticated
               deriving Show
+
+data AppEnv = Dev | Test | Prod deriving (Show, Read)
 
 type AuthToken = ByteString
 
@@ -76,7 +79,10 @@ instance MonadLogger L where
 
 instance Replicant AppError L where
   redisPool      = asks redisConn
-  redisNamespace = return "leeloo"
+  redisNamespace = \case
+                     Test -> "leeloo.test"
+                     _    -> "leeloo"
+                   <$> asks appEnv
   redisError _   = throwError RedisError
 
 runL :: AppConf -> L a -> IO (Either AppError a)
@@ -85,29 +91,46 @@ runL = runReplicantT
 env :: String -> IO Text
 env key = pack <$> getEnv key
 
+getMode :: IO AppEnv
+getMode = maybe Dev read <$> lookupEnv "LEELOO_ENV"
+
 getSlackCredentials :: IO Credentials
 getSlackCredentials = Credentials
   <$> env "SLACK_CLIENT_ID"
   <*> env "SLACK_CLIENT_SECRET"
 
--- TODO: add Dev | Test | Prod environments (and use here and in Redis namespacing)
-getRollbarSettings :: IO Rollbar.Settings
-getRollbarSettings = do
-  tok <- env "ROLLBAR_ACCESS_TOKEN"
-  return Rollbar.Settings
-    { Rollbar.environment = Rollbar.Environment "dev"
+getRollbarSettings :: AppEnv -> IO (Maybe Rollbar.Settings)
+getRollbarSettings Prod = do
+  tok  <- env "ROLLBAR_ACCESS_TOKEN"
+  name <- fromMaybe "leelo.dev" <$> lookupEnv "HOSTNAME"
+  return $ Just Rollbar.Settings
+    { Rollbar.environment = Rollbar.Environment "Production"
     , Rollbar.token       = Rollbar.ApiToken tok
-    , Rollbar.hostName    = "leeloo.dev"
+    , Rollbar.hostName    = name
     }
+getRollbarSettings _ = return Nothing
 
-getRedisConnection :: IO Connection
-getRedisConnection = connect defaultConnectInfo -- TODO: check for env vars
+getRedisConnection :: AppEnv -> IO Connection
+getRedisConnection Prod = do -- TODO: make this conditional on presence of Redis ENV vars only
+  host  <- getEnv "REDIS_HOST"
+  port  <- read <$> getEnv "REDIS_PORT"
+  pool  <- maybe 10 read <$> lookupEnv "REDIS_MAX_CONNECTIONS"
+  auth  <- lookupEnv "REDIS_AUTH"
+  connect $ defaultConnectInfo { connectHost           = host
+                               , connectPort           = PortNumber $ PortNum port
+                               , connectMaxConnections = pool
+                               , connectAuth           = BSC.pack <$> auth
+                               }
+getRedisConnection _ = connect defaultConnectInfo
 
 mkConf :: IO AppConf
-mkConf = AppConf
-  <$> newSupervisor
-  <*> getRedisConnection
-  <*> pure "leeloo"
-  <*> newLogger
-  <*> getSlackCredentials
-  <*> getRollbarSettings
+mkConf = do
+  mode <- getMode
+  AppConf
+    <$> pure mode
+    <*> newSupervisor
+    <*> getRedisConnection mode
+    <*> pure "leeloo"
+    <*> newLogger
+    <*> getSlackCredentials
+    <*> getRollbarSettings mode

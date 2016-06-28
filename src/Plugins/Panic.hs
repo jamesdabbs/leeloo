@@ -33,7 +33,7 @@ record :: Replicant e m => Handler m
 record = mkHandler "Record reported panic scores" False recordP [] $ \n -> do
   user <- getSender
   respondToPoll user n
-  sendToUser user $ T.pack $ show n <> ", got it"
+  sendToUser user $ tshow n <> ", got it"
 
 recordP :: Parser Int
 recordP = do
@@ -60,7 +60,7 @@ respondToPoll :: Replicant e m => User -> Int -> H m ()
 respondToPoll user n = do
   poll <- activePollFor user
   when (n > 4) $
-    sendToUser (pollPoster poll) $ "FYI, " <> (T.pack $ show user) <> " is at a " <> (T.pack $ show n)
+    sendToUser (pollPoster poll) $ "FYI, " <> tshow user <> " is at a " <> (T.pack $ show n)
   recordPollResponse poll user n
 
 data Poll = Poll

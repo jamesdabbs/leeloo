@@ -18,6 +18,7 @@ import Data.Monoid                  as Base ((<>))
 import Data.Text                    as Base (Text)
 import Data.Text.Encoding           as Base (encodeUtf8, decodeUtf8)
 
+import qualified Data.Text as T
 import qualified Debug.Trace as Debug
 
 tr :: Show a => a -> b -> b
@@ -29,3 +30,5 @@ tr' = Debug.traceShowId
 trm :: (Show a, Monad m) => a -> m ()
 trm = Debug.traceShowM
 
+tshow :: Show a => a -> Text
+tshow = T.pack . show
