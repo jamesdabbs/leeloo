@@ -85,7 +85,7 @@ redirectTo url = throwError $ Redirect url
 instance ToJSON PluginData where
   toJSON PluginData{..} = object
     [ "name"     .= pdName
-    , "examples" .= (object $ map examplePair pdExamples)
+    , "examples" .= object (map examplePair pdExamples)
     ]
     where
       examplePair Example{..} = exampleText .= exampleDescription

@@ -39,6 +39,13 @@ packages:
 - '.'
 - '../hedis-namespace'
 - '../replicant'
+- location:
+   git: https://github.com/docmunch/rollbar-haskell.git
+   commit: fc407752afcd76d0989017c644ad4bc84b6c7f13
+- location:
+   git: https://github.com/fpco/safe-exceptions.git
+   commit: c5d1f0b49e6017dbbb6117f3176769017d168d6f
+
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps: []

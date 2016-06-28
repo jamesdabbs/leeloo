@@ -17,15 +17,15 @@ import Servant
 
 import Base
 import App
-import Bots (startSavedBots)
+import Bots (reportErrors, startSavedBots)
 import qualified Controller as C
 import Replicant
 import Replicant.Plugin
 
-import qualified Data.Text                as T
-import qualified Data.Text.IO             as T
-import qualified Network.Wai              as W
-import qualified Network.Wai.Handler.Warp as W
+import qualified Data.Text                 as T
+import qualified Data.Text.IO              as T
+import qualified Network.Wai               as W
+import qualified Network.Wai.Handler.Warp  as W
 import           Network.Wai.Middleware.RequestLogger (logStdoutDev)
 
 type GET    a = Get    '[JSON] a
@@ -68,9 +68,10 @@ extend :: ServerT API L -> AppConf -> Server API
 extend handlers conf = enter (Nat $ run conf) handlers
 
 run :: AppConf -> L a -> ExceptT ServantErr IO a
-run conf l = liftIO (runL conf l) >>= \case
+run conf l = liftIO (runL conf $ reportErrors "[API]" l) >>= \case
   Left  err -> throwError $ coerceError err
   Right val -> return val
+
 
 coerceError :: AppError -> ServantErr
 coerceError (Redirect url)   = err303 { errHeaders = [("Location", encodeUtf8 url)] }

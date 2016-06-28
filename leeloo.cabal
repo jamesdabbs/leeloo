@@ -37,10 +37,14 @@ library
                      , containers
                      , either
                      , fast-logger
+                     , gitrev
                      , hedis-namespace
+                     , lifted-base
                      , monad-logger
                      , mtl
                      , resourcet
+                     , rollbar
+                     , safe-exceptions
                      , text
                      , transformers
                      , uuid

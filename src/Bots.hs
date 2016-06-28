@@ -1,10 +1,12 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Bots
  ( buildSlackBot
  , defaultPlugins
  , getBot
  , getStatuses
  , mkConf
+ , reportErrors
  , registerBot
  , registerUser
  , savedBots
@@ -29,13 +31,18 @@ import qualified Replicant.Adapters.CLI       as CLI
 import qualified Replicant.Adapters.Slack     as Slack
 import qualified Replicant.Adapters.Slack.Api as Slack
 
-import qualified Data.ByteString          as BS
-import qualified Data.List                as L
-import qualified Data.Map                 as M
-import qualified Data.Text                as T
-import qualified Data.UUID                as UUID
-import qualified Data.UUID.V4             as UUID
-import qualified Database.Redis.Namespace as R
+import           Control.Concurrent.Lifted (fork)
+import           Control.Exception.Safe    (SomeException, catchAny, throw)
+import           Control.Monad.Logger      (logDebugS)
+import qualified Data.ByteString           as BS
+import qualified Data.List                 as L
+import qualified Data.Map                  as M
+import qualified Data.Text                 as T
+import qualified Data.UUID                 as UUID
+import qualified Data.UUID.V4              as UUID
+import qualified Database.Redis.Namespace  as R
+import           Development.GitRev        (gitHash)
+import qualified Rollbar
 
 startCli :: AppConf -> IO ()
 startCli conf = do
@@ -63,10 +70,12 @@ startSavedBots = allSavedBots >>= mapM_ (startBot . buildSlackBot)
 startBot :: BotSpec L -> L ()
 startBot spec = asks supervisor >>= \s -> R.startBot s notify spec
   where
-    _log = Log.worker (botName $ botRecord spec)
-    notify  WorkerBooting     = _log "booting"
-    notify  WorkerDone        = _log "exited"
-    notify (WorkerCrashed ex) = _log $ "crashed: " <> T.pack (show ex)
+    Bot{..} = botRecord spec
+    notify WorkerBooting = Log.worker botName "booting"
+    notify WorkerDone    = Log.worker botName "exited"
+    notify (WorkerCrashed ex) = do
+      sendToRollbar ("[Bot] " <> botName <> " (" <> botId <> ")") ex
+      Log.worker botName $ "crashed: " <> T.pack (show ex)
     notify _ = return ()
 
 stopBot :: BotId -> L ()
@@ -134,3 +143,20 @@ getBot user _id = do
   case L.find (\b -> _id == botId b) bots of
     Nothing -> throwError NotFound
     Just  b -> return b
+
+reportErrors :: Text -> L a -> L a
+reportErrors label = flip catchAny $ \e -> do
+  fork $ sendToRollbar label e
+  throw e
+
+sendToRollbar :: Text -> SomeException -> L ()
+sendToRollbar label e = do
+  settings <- asks rollbarSettings
+  -- TODO: report more useful information here (authentication token, user data, backtrace where available)
+  Rollbar.reportErrorS settings opts label $ T.pack $ show e
+  where
+    opts :: Rollbar.Options
+    opts = Rollbar.Options
+      { person      = Nothing
+      , revisionSha = Just $(gitHash)
+      }

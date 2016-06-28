@@ -28,6 +28,7 @@ import           Control.Monad.Reader        (MonadReader(..), asks)
 import           Database.Redis.Namespace    (Connection, connect, defaultConnectInfo)
 import           Data.ByteString             (ByteString)
 import           Data.Text                   (Text, pack)
+import qualified Rollbar
 import           System.Environment          (getEnv)
 
 import Replicant
@@ -42,6 +43,7 @@ data AppConf = AppConf
   , redisNS             :: Text
   , logger              :: Logger
   , slackAppCredentials :: Credentials
+  , rollbarSettings     :: Rollbar.Settings
   }
 
 type AppUserToken = Text
@@ -88,10 +90,24 @@ getSlackCredentials = Credentials
   <$> env "SLACK_CLIENT_ID"
   <*> env "SLACK_CLIENT_SECRET"
 
+-- TODO: add Dev | Test | Prod environments (and use here and in Redis namespacing)
+getRollbarSettings :: IO Rollbar.Settings
+getRollbarSettings = do
+  tok <- env "ROLLBAR_ACCESS_TOKEN"
+  return Rollbar.Settings
+    { Rollbar.environment = Rollbar.Environment "dev"
+    , Rollbar.token       = Rollbar.ApiToken tok
+    , Rollbar.hostName    = "leeloo.dev"
+    }
+
+getRedisConnection :: IO Connection
+getRedisConnection = connect defaultConnectInfo -- TODO: check for env vars
+
 mkConf :: IO AppConf
 mkConf = AppConf
   <$> newSupervisor
-  <*> connect defaultConnectInfo
+  <*> getRedisConnection
   <*> pure "leeloo"
   <*> newLogger
   <*> getSlackCredentials
+  <*> getRollbarSettings
