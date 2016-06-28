@@ -47,6 +47,7 @@ library
                      , rollbar
                      , safe-exceptions
                      , text
+                     , time
                      , transformers
                      , uuid
                      , wreq

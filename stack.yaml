@@ -37,14 +37,8 @@ resolver: lts-6.1
 # will not be run. This is useful for tweaking upstream packages.
 packages:
 - '.'
-#- '../hedis-namespace'
-#- '../replicant'
-- location:
-   git: https://github.com/jamesdabbs/hedis-namespace.git
-   commit: c8e621a4a0e55f67446bec99c348868d4f6110d2
-- location:
-   git: https://github.com/jamesdabbs/replicant.git
-   commit: f0940ef6d6c93d879af45cf346367531e87a51a2
+- '/data/src/hedis-namespace'
+- '/data/src/replicant'
 - location:
    git: https://github.com/docmunch/rollbar-haskell.git
    commit: fc407752afcd76d0989017c644ad4bc84b6c7f13
