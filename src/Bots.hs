@@ -17,13 +17,12 @@ module Bots
  ) where
 
 import Base
-import Replicant hiding (startBot)
-import Replicant.Bot.Supervisor (status)
+import Replicant hiding (startBot, stopBot)
 import App
 import Bot
 
 import Plugins.Panic
---import qualified Logging as Log
+import qualified Logging as Log
 
 import qualified Replicant                    as R
 import qualified Replicant.Adapters.CLI       as CLI
@@ -33,6 +32,7 @@ import qualified Replicant.Adapters.Slack.Api as Slack
 import qualified Data.ByteString          as BS
 import qualified Data.List                as L
 import qualified Data.Map                 as M
+import qualified Data.Text                as T
 import qualified Data.UUID                as UUID
 import qualified Data.UUID.V4             as UUID
 import qualified Database.Redis.Namespace as R
@@ -61,13 +61,20 @@ startSavedBots :: L ()
 startSavedBots = allSavedBots >>= mapM_ (startBot . buildSlackBot)
 
 startBot :: BotSpec L -> L ()
-startBot spec = do
-  conf <- ask
-  R.startBot (void . runL conf) spec
+startBot spec = asks supervisor >>= \s -> R.startBot s notify spec
+  where
+    _log = Log.worker (botName $ botRecord spec)
+    notify  WorkerBooting     = _log "booting"
+    notify  WorkerDone        = _log "exited"
+    notify (WorkerCrashed ex) = _log $ "crashed: " <> T.pack (show ex)
+    notify _ = return ()
+
+stopBot :: BotId -> L ()
+stopBot _id = asks supervisor >>= flip R.stopBot _id
 
 getStatuses :: [Bot] -> L [BotStatus]
 getStatuses bs = do
-  stats <- supervisor >>= liftIO . status
+  stats <- asks supervisor >>= status
   return $ map (\b@Bot{..} -> BotStatus b $ M.lookup botId stats) bs
 
 userFromToken :: AuthToken -> L (Maybe AppUser)
@@ -82,10 +89,10 @@ getUser uid = return . Just $ AppUser (decodeUtf8 uid) "FIXME: username" "FIXME:
 
 registerUser :: AppUserToken -> L (AppUser, AuthToken)
 registerUser token = do
-  info  <- Slack.getBotInfo $ BotInfo token ""
-  user  <- saveAppUser $ botToAppUser info
-  token <- generateToken user
-  return (user, token)
+  info   <- Slack.getBotInfo $ BotInfo token ""
+  user   <- saveAppUser $ botToAppUser info
+  utoken <- generateToken user
+  return (user, utoken)
 
 generateToken :: AppUser -> L AuthToken
 generateToken AppUser{..} = do

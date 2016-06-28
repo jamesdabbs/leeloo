@@ -37,7 +37,7 @@ import Replicant.Adapters.Slack.Types (Credentials(..))
 import Logging                        (Logger, newLogger)
 
 data AppConf = AppConf
-  { bots                :: Supervisor BotId
+  { supervisor          :: Supervisor L BotId
   , redisConn           :: Connection
   , redisNS             :: Text
   , logger              :: Logger
@@ -72,14 +72,10 @@ instance MonadLogger L where
     l <- asks logger
     liftIO . l $ toLogStr msg
 
-instance BotM AppError L where
+instance Replicant AppError L where
   redisPool      = asks redisConn
   redisNamespace = return "leeloo"
   redisError _   = throwError RedisError
-  botSupervisor  = asks bots
-  runIO = do
-    conf <- ask
-    return $ void . runL conf
 
 runL :: AppConf -> L a -> IO (Either AppError a)
 runL = runReplicantT
@@ -99,6 +95,3 @@ mkConf = AppConf
   <*> pure "leeloo"
   <*> newLogger
   <*> getSlackCredentials
-
-supervisor :: L (Supervisor BotId)
-supervisor = asks bots

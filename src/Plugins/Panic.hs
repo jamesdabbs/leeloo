@@ -11,10 +11,10 @@ import           Data.Attoparsec.Text
 import qualified Data.Text as T
 import qualified Database.Redis.Namespace as R
 
-panic :: BotM e m => Plugin m
+panic :: Replicant e m => Plugin m
 panic = Plugin "panic" [check, record, export]
 
-check :: BotM e m => Handler m
+check :: Replicant e m => Handler m
 check = mkHandler "Start a panic score poll" True checkP [] $ \mroom -> do
   reply "I don't know, but I'll ask them"
   getRoom mroom >>= \case
@@ -29,7 +29,7 @@ checkP = do
   optional (string "in " *> word)
 
 
-record :: BotM e m => Handler m
+record :: Replicant e m => Handler m
 record = mkHandler "Record reported panic scores" False recordP [] $ \n -> do
   user <- getSender
   respondToPoll user n
@@ -41,7 +41,7 @@ recordP = do
   return $ read [d]
 
 
-export :: BotM e m => Handler m
+export :: Replicant e m => Handler m
 export = mkHandler "Export panic scores" True (string "export panic") [] $ \_ ->
   error "export panic"
 
@@ -51,12 +51,12 @@ getRoom mname = case mname of
   Just name -> getRoomByName name
   _         -> Just . messageRoom <$> getMessage
 
-startPoll :: BotM e m => Room -> H m ()
+startPoll :: Replicant e m => Room -> H m ()
 startPoll source = do
   members <- getRoomMembers source
   forM_ members $ \u -> sendToUser u "Hey, how are you doing today (on a scale of 1-6)?"
 
-respondToPoll :: BotM e m => User -> Int -> H m ()
+respondToPoll :: Replicant e m => User -> Int -> H m ()
 respondToPoll user n = do
   poll <- activePollFor user
   when (n > 4) $

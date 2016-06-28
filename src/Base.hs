@@ -28,3 +28,4 @@ tr' = Debug.traceShowId
 
 trm :: (Show a, Monad m) => a -> m ()
 trm = Debug.traceShowM
+

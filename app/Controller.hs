@@ -17,10 +17,10 @@ import Base
 import Data.Aeson
 
 import App
-import Replicant.Bot.Supervisor (WorkerState(..), WorkerStatus(..))
+import Replicant.Bot.Supervisor (WorkerStatus(..))
 import Bots
 
-import Replicant hiding (startBot)
+import Replicant.Types
 import Replicant.Plugin
 import qualified Replicant.Adapters.Slack.Api as S
 
@@ -33,19 +33,11 @@ instance FromJSON BotInfo where
 instance ToJSON ThreadId where
   toJSON t = Number . read . drop 9 $ show t
 
-instance ToJSON WorkerState where
-  toJSON WorkerRunning = "running"
-  toJSON WorkerCrashed = "crashed"
-  toJSON WorkerDone    = "done"
-
 instance ToJSON WorkerStatus where
-  toJSON WorkerStatus{..} = object
-    [ "thread" .= wsThread
-    , "error"  .= case wsError of
-        Just err -> Just $ show err
-        Nothing  -> Nothing
-    , "state"  .= wsState
-    ]
+  toJSON WorkerBooting          = object [ "status" .= ("booting" :: Text) ]
+  toJSON (WorkerRunning thread) = object [ "status" .= ("running" :: Text) , "thread" .= thread ]
+  toJSON (WorkerCrashed ex)     = object [ "status" .= ("crashed" :: Text) , "error" .= show ex ]
+  toJSON WorkerDone             = object [ "status" .= ("done"    :: Text) ]
 
 instance ToJSON BotStatus where
   toJSON BotStatus{..} = object
